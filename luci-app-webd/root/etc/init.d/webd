@@ -1,0 +1,51 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2019 [CTCGFW] Project OpenWRT
+
+START=90
+STOP=10
+
+tempath="/tmp"
+addrtype="$(uci get webd.config.addrtype)"
+enabled="$(uci get webd.config.enabled)"
+listenport="$(uci get webd.config.listenport)"
+rootname="$(uci get webd.config.rootname)"
+rootpass="$(uci get webd.config.rootpass)"
+username="$(uci get webd.config.username)"
+password="$(uci get webd.config.password)"
+guestallow="$(uci get webd.config.guestallow)"
+adminuser="rlum:${rootname}:${rootpass}"
+commonuser="rl:${username}:${password}"
+
+if [ "${addrtype}" == "lan" ];then
+	addr="$(uci get network.lan.ipaddr):${listenport}"
+elif [ "${addrtype}" == "wan" ];then
+	addr="[::]:${listenport}"
+fi
+
+if [ "${guestallow}" == "0" ];then
+	guest="0"
+elif [ "${guestallow}" == "1" ];then
+	guest="rl"
+fi
+
+start() {
+	[ "$enabled" == "1" ] || exit 0
+	rootpath="$(uci get webd.config.rootpath)"
+	mkdir -p "${rootpath}/.Trash"
+	webd -l "${addr}" -w "${rootpath}" -u "${adminuser}" -u "${commonuser}" -g "${guest}" >/dev/null 2>&1 &
+}
+
+stop() {
+	if [[ "${rootpath}" != "nil" ]] && [[ "${rootpath}" != "${tempath}" ]];then
+		tempath=rootpath
+	fi
+	rm -r "${tempath}/.Trash"
+	killall webd >/dev/null 2>&1
+}
+
+restart() {
+    stop
+    sleep 2
+    start
+}
+

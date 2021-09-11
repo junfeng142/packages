@@ -1,0 +1,3 @@
+config service 'service'
+	option enable '0'
+	option port '5299'

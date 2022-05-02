@@ -1,0 +1,110 @@
+--- a/target/linux/sunxi/patches-4.14/206-add-sun8i-spi0flash_16M-usb2-usb3-uart1-uart2.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/target/linux/sunxi/patches-4.14/206-add-sun8i-spi0flash_16M-usb2-usb3-uart1-uart2.patch	2020-02-24 20:40:40.936128000 +0800
+@@ -0,0 +1,107 @@
++--- a/arch/arm/boot/dts/sun8i-h2-plus-orangepi-zero.dts
+++++ b/arch/arm/boot/dts/sun8i-h2-plus-orangepi-zero.dts
++@@ -105,6 +105,14 @@
++ 	status = "okay";
++ };
++ 
+++&ehci2 {
+++	status = "okay";
+++};
+++
+++&ehci3 {
+++	status = "okay";
+++};
+++
++ &emac {
++ 	phy-handle = <&int_mii_phy>;
++ 	phy-mode = "mii";
++@@ -156,17 +164,63 @@
++ 	status = "okay";
++ };
++ 
++-&spi0 {
++-	/* Disable SPI NOR by default: it optional on Orange Pi Zero boards */
++-	status = "disabled";
+++&ohci2 {
+++	status = "okay";
+++};
++ 
++-	flash@0 {
++-		#address-cells = <1>;
++-		#size-cells = <1>;
++-		compatible = "mxicy,mx25l1606e", "winbond,w25q128";
++-		reg = <0>;
++-		spi-max-frequency = <40000000>;
++-	};
+++&ohci3 {
+++	status = "okay";
+++};
+++
+++&spi0 {
+++	pinctrl-0 = <&spi0_pins>;
+++	status = "okay";
+++    
+++    flash@0 {
+++        #address-cells = <1>;
+++        #size-cells = <1>;
+++        compatible = "winbond,w25q128", "stmicro,n25q128", "jedec,spi-nor";
+++        reg = <0>;
+++        spi-max-frequency = <40000000>;
+++        partitions {
+++            compatible = "fixed-partitions";
+++            #address-cells = <1>;
+++            #size-cells = <1>;
+++
+++            partition@0 {
+++                label = "u-boot";
+++                reg = <0x000000 0x80000>;
+++                read-only;
+++            };
+++
+++			partition@80000 {
+++                label = "u-boot-env";
+++                reg = <0x80000 0x20000>;
+++            };
+++
+++            dtb:partition@a0000 {
+++                label = "dtb";
+++                reg = <0xA0000 0x10000>;
+++                read-only;
+++            };
+++
+++            kernel:partition@b0000 {
+++                label = "kernel";
+++                reg = <0xB0000 0x300000>;
+++                read-only;
+++            };
+++
+++            rootfs:partition@380000 {
+++                label = "rootfs";
+++                reg = <0x3B0000 0xC50000>;
+++            };
+++
+++			partition {
+++            	label = "firmware";
+++            	reg = <0xA0000 0xF60000>;
+++        	};        
+++        };
+++    };
++ };
++ 
++ &uart0 {
++@@ -178,13 +232,13 @@
++ &uart1 {
++ 	pinctrl-names = "default";
++ 	pinctrl-0 = <&uart1_pins>;
++-	status = "disabled";
+++	status = "okay";
++ };
++ 
++ &uart2 {
++ 	pinctrl-names = "default";
++ 	pinctrl-0 = <&uart2_pins>;
++-	status = "disabled";
+++	status = "okay";
++ };
++ 
++ &usb_otg {

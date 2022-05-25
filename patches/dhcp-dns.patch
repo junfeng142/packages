@@ -1,6 +1,6 @@
-diff -Naur a/luci/modules/luci-base/po/zh_Hans/base.po b/luci/modules/luci-base/po/zh_Hans/base.po
---- a/luci/modules/luci-base/po/zh_Hans/base.po	2022-05-25 13:45:38.321047187 +0800
-+++ b/luci/modules/luci-base/po/zh_Hans/base.po	2022-05-25 13:47:50.140535860 +0800
+diff -Naur a/feeds/luci/modules/luci-base/po/zh_Hans/base.po b/luci/modules/luci-base/po/zh_Hans/base.po
+--- a/feeds/luci/modules/luci-base/po/zh_Hans/base.po	2022-05-25 13:45:38.321047187 +0800
++++ b/feeds/luci/modules/luci-base/po/zh_Hans/base.po	2022-05-25 13:47:50.140535860 +0800
 @@ -5294,6 +5294,18 @@
  msgid "Submit"
  msgstr "提交"
@@ -20,9 +20,9 @@ diff -Naur a/luci/modules/luci-base/po/zh_Hans/base.po b/luci/modules/luci-base/
  #: modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js:203
  msgid "Suppress logging"
  msgstr "不记录日志"
-diff -Naur a/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js b/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js
---- a/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js	2022-05-25 13:41:59.838502223 +0800
-+++ b/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js	2022-05-25 13:50:34.000723090 +0800
+diff -Naur a/feeds/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js b/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js
+--- a/feeds/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js	2022-05-25 13:41:59.838502223 +0800
++++ b/feeds/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js	2022-05-25 13:50:34.000723090 +0800
 @@ -198,6 +198,11 @@
  
  		s.taboption('files', form.DynamicList, 'addnhosts',

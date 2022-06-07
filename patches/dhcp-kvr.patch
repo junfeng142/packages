@@ -1,0 +1,151 @@
+diff -Naur a/luci/modules/luci-base/po/zh_Hans/base.po b/luci/modules/luci-base/po/zh_Hans/base.po
+--- a/luci/modules/luci-base/po/zh_Hans/base.po	2022-05-25 13:45:38.321047187 +0800
++++ b/luci/modules/luci-base/po/zh_Hans/base.po	2022-06-07 11:44:55.589567002 +0800
+@@ -5294,6 +5294,18 @@
+ msgid "Submit"
+ msgstr "提交"
+ 
++msgid "Disable IPv6 DNS forwards"
++msgstr "禁止解析 IPv6 DNS 记录"
++
++msgid "Filter IPv6(AAAA) DNS Query Name Resolve"
++msgstr "过滤掉 IPv6(AAAA) ，只返回 IPv4 DNS 域名记录"
++
++msgid "Minimum TTL to send to clients"
++msgstr "客户端缓存的最小 DNS TTL"
++
++msgid "Modify DNS entries minimum TTL (max is 86400, 0 is no modify)"
++msgstr "修改发送到客户端的域名记录的 TTL 时间 (最大 86400, 0 表示不修改)"
++
+ #: modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js:203
+ msgid "Suppress logging"
+ msgstr "不记录日志"
+@@ -6927,3 +6939,33 @@
+ 
+ #~ msgid "Pre-emtive CRC errors (CRCP_P)"
+ #~ msgstr "抢占式 CRC 错误（CRCP_P）"
++
++msgid "Enables The 802.11k standard provides information to discover the best available access point"
++msgstr "启用 802.11k 自动寻找发现最佳可用接入点的信息"
++
++msgid "Enable neighbor report via radio measurements"
++msgstr "启用无线电测量邻居报告"
++
++msgid "Enable beacon report via radio measurements"
++msgstr "启用无线电测量信标报告"
++
++msgid "Enables 802.11v allows client devices to exchange information about the network topology,tating overall improvement of the wireless network."
++msgstr "启用 802.11v 将允许客户端设备交换有关网络拓扑的信息，从而全面改善无线网络漫游"
++
++msgid "extended sleep mode for stations"
++msgstr "扩展无线休眠节能模式"
++
++msgid "BSS Transition Management"
++msgstr "BSS 传输管理"
++
++msgid "UTC time at which the TSF timer is 0"
++msgstr "TSF计时器为0的UTC时间"
++
++msgid "Time advertisement"
++msgstr "广播同步时间"
++
++msgid "time zone"
++msgstr "时区"
++
++msgid "Local time zone as specified in 8.3 of IEEE Std 1003.1-2004"
++msgstr "本地时区采用 IEEE Std 1003.1-2004 的 8.3 格式（例如 UTC8）"
+diff -Naur a/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js b/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js
+--- a/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js	2022-05-25 13:41:59.838502223 +0800
++++ b/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js	2022-05-25 13:50:34.000723090 +0800
+@@ -198,6 +198,11 @@
+ 
+ 		s.taboption('files', form.DynamicList, 'addnhosts',
+ 			_('Additional Hosts files')).optional = true;
++			
++		o = s.taboption('advanced', form.Flag, 'filter_aaaa',
++			_('Disable IPv6 DNS forwards'),
++			_('Filter IPv6(AAAA) DNS Query Name Resolve'));
++		o.optional = true;
+ 
+ 		o = s.taboption('advanced', form.Flag, 'quietdhcp',
+ 			_('Suppress logging'),
+@@ -357,6 +362,13 @@
+ 		o.datatype = 'range(0,10000)';
+ 		o.placeholder = 150;
+ 
++        o = s.taboption('advanced', form.Value, 'mini_ttl',
++			_('Minimum TTL to send to clients'),
++			_('Modify DNS entries minimum TTL (max is 86400, 0 is no modify)'));
++		o.optional = true;
++		o.datatype = 'range(0,86400)';
++		o.placeholder = 0;
++
+ 		s.taboption('tftp', form.Flag, 'enable_tftp',
+ 			_('Enable TFTP server')).optional = true;
+ 
+diff -Naur a/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js b/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js
+--- a/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js	2022-05-25 13:41:59.887502189 +0800
++++ b/luci/modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js	2022-06-07 11:43:32.420143556 +0800
+@@ -884,6 +884,10 @@
+ 
+ 					o = ss.taboption('advanced', form.Flag, 'legacy_rates', _('Allow legacy 802.11b rates'));
+ 					o.default = o.enabled;
++					
++					o = ss.taboption("advanced", form.Flag, "mu_beamformer", _('MU-MIMO'));
++	                o.rmempty = false;
++	                o.default = "0";
+ 
+ 					o = ss.taboption('advanced', form.Value, 'distance', _('Distance Optimization'), _('Distance to farthest network member in meters.'));
+ 					o.datatype = 'or(range(0,114750),"auto")';
+@@ -1409,7 +1413,50 @@
+ 				}
+ 
+ 
+-				if (hwtype == 'mac80211') {
++				if (hwtype == 'mac80211') or (hwtype == 'prism2' ) {
++				    // Probe 802.11k support
++                	o = ss.taboption("encryption", form.Flag, "ieee80211k", _("802.11k"), _("Enables The 802.11k standard provides information to discover the best available access point"));
++                	add_dependency_permutations(o, { mode: ['ap', 'ap-wds'], encryption: ['wpa', 'wpa2', 'wpa3', 'wpa3-mixed', 'psk', 'psk2', 'psk-mixed', 'sae', 'sae-mixed'] });
++                	o.rmempty = true;
++                	
++                	o = ss.taboption("encryption", form.Flag, "rrm_neighbor_report", _("Enable neighbor report via radio measurements"));
++                	o.default = rrmneighborreport.enabled;
++                	o.depends({ ieee80211k: '1' });
++                	o.rmempty = true;
++                
++                	o = ss.taboption("encryption", form.Flag, "rrm_beacon_report", _("Enable beacon report via radio measurements"))
++                	o.default = rrmbeaconreport.enabled
++                	o.depends({ ieee80211k: '1' });
++                	o.rmempty = true;
++                	// End of 802.11k options
++                
++                	// Probe 802.11v support
++                	o = ss.taboption("encryption", form.Flag, "ieee80211v", _("802.11v"), _("Enables 802.11v allows client devices to exchange information about the network topology,tating overall improvement of the wireless network."));
++                	add_dependency_permutations(o, { mode: ['ap', 'ap-wds'], encryption: ['wpa', 'wpa2', 'wpa3', 'wpa3-mixed', 'psk', 'psk2', 'psk-mixed', 'sae', 'sae-mixed'] });
++                	o.rmempty = true;
++                
++                	o = ss.taboption("encryption", form.Flag, "wnm_sleep_mode", _("extended sleep mode for stations"));
++                	o.default = wnmsleepmode.disabled;
++                	o.depends({ ieee80211v: '1' });
++                	o.rmempty = true;
++                
++                	o = ss.taboption("encryption", form.Flag, "bss_transition", _("BSS Transition Management"));
++                	o.default = bsstransition.disabled;
++                	o.depends({ ieee80211v: '1' });
++                	o.rmempty = true;
++                
++                	o = ss.taboption("encryption", form.ListValue, "time_advertisement", _("Time advertisement"));
++                	o.depends({ ieee80211v: '1' });
++                	o.value("0", translatef("disabled"));
++                	o.value("2", translatef("UTC time at which the TSF timer is 0"));
++                	o.rmempty = true;
++                
++                	o = ss.taboption("encryption", Value, "time_zone", _("time zone"), _("Local time zone as specified in 8.3 of IEEE Std 1003.1-2004"));
++                	o.depends({ time_advertisement: '2' });
++                	o.placeholder = "UTC8";
++                	o.rmempty = true;
++                	// End of 802.11v options
++				    
+ 					// Probe 802.11r support (and EAP support as a proxy for Openwrt)
+ 					var has_80211r = L.hasSystemFeature('hostapd', '11r') || L.hasSystemFeature('hostapd', 'eap');
+ 

@@ -113,8 +113,8 @@ diff -Naur a/feeds/luci/modules/luci-mod-network/htdocs/luci-static/resources/vi
 +                	o.depends({ ieee80211k: '1' });
 +                	o.rmempty = true;
 +                
-+                	o = ss.taboption("encryption", form.Flag, "rrm_beacon_report", _("Enable beacon report via radio measurements"))
-+                	o.default = rrmbeaconreport.enabled
++                	o = ss.taboption("encryption", form.Flag, "rrm_beacon_report", _("Enable beacon report via radio measurements"));
++                	o.default = rrmbeaconreport.enabled;
 +                	o.depends({ ieee80211k: '1' });
 +                	o.rmempty = true;
 +                	// End of 802.11k options

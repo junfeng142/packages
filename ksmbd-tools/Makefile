@@ -1,21 +1,26 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ksmbd-tools
-PKG_VERSION:=3.4.5
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_VERSION:=3.3.9
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/cifsd-team/ksmbd-tools/tar.gz/$(PKG_VERSION)?
-PKG_HASH:=e22e5bef29ffa2670fc82c490ad4dc6eb00963b4f963dd1852c811b437c77ee1
+PKG_HASH:=7c2c86130912d780df69f26d797d4bd88cf31876a86fdad17032ab684bfe7d8a
 
+PKG_MAINTAINER:=Andy Walsh <andy.walsh44+github@gmail.com>
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
+
+PKG_FIXUP:=autoreconf
+PKG_REMOVE_FILES:=autogen.sh
+PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 PKG_BUILD_DEPENDS:=glib2
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
-include $(INCLUDE_DIR)/meson.mk
 
 TAR_OPTIONS+= --strip-components 1
 TAR_CMD=$(HOST_TAR) -C $(1) $(TAR_OPTIONS)
@@ -25,7 +30,7 @@ define Package/ksmbd-tools/Default
   CATEGORY:=Network
   SUBMENU:=Filesystem
   TITLE:=Kernel SMB
-  URL:=https://github.com/cifsd-team/ksmbd-tools
+  URL:=https://github.com/cifsd-team/cifsd-tools
   DEPENDS:= $(ICONV_DEPENDS) $(INTL_DEPENDS)
 endef
 
@@ -84,12 +89,14 @@ define Package/ksmbd-avahi-service/description
   Ksmbd (smb/445) Daemon service via mDNS/DNS-SD.
 endef
 
-MESON_ARGS += \
-	-Db_lto=true \
-	-Dkrb5=disabled
+CONFIGURE_ARGS += \
+	--disable-shared \
+	--enable-static
 
-TARGET_CFLAGS += -ffunction-sections -fdata-sections
-TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
+CONFIGURE_VARS += GLIB_LIBS="$(STAGING_DIR)/usr/lib/libglib-2.0.a"
+
+TARGET_CFLAGS += -ffunction-sections -fdata-sections -flto
+TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed -liconv $(if $(INTL_FULL),-lintl) $(if $(CONFIG_USE_GLIBC),-lpthread)
 
 define Package/ksmbd-server/install
 	$(INSTALL_DIR) $(1)/usr/sbin

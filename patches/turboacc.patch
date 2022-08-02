@@ -229,7 +229,7 @@ diff -Naru a/package/own/luci-app-turboacc/Makefile b/package/own/luci-app-turbo
 +	default n
 +endef
 +
-+include ../../luci.mk
++include $(TOPDIR)/feeds/luci/luci.mk
 +
 +# call BuildPackage - OpenWrt buildroot signature
 diff -Naru a/package/own/luci-app-turboacc/po/zh-cn/turboacc.po b/package/own/luci-app-turboacc/po/zh-cn/turboacc.po

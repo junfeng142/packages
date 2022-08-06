@@ -1,0 +1,5 @@
+config service 'service'
+	option enable '0'
+	option port '5299'
+	option download_path '/mnt/JDCOS/Baidupcs/download'
+	option project_path '/usr/bin'

@@ -1,9 +1,0 @@
-config filebrowser
-	option enable '0'
-	option addrtype 'lan'
-	option port '8989'
-	option root_path '/'
-	option admin 'admin'
-	option password 'admin'
-	option project_path '/usr/bin'
-	option Enabled 'true'

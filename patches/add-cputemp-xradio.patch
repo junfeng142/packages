@@ -1,0 +1,2017 @@
+diff -uprN a/package/own/luci2-cputemp/files/10_system.js b/package/own/luci2-cputemp/files/10_system.js
+--- a/package/own/luci2-cputemp/files/10_system.js	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci2-cputemp/files/10_system.js	2022-05-02 11:40:24.360594517 +0800
+@@ -0,0 +1,3 @@
++'use strict';'require baseclass';'require fs';'require rpc';var callSystemBoard=rpc.declare({object:'system',method:'board'});var callSystemInfo=rpc.declare({object:'system',method:'info'});var callCPUInfo=rpc.declare({object:'luci',method:'getCPUInfo'});return baseclass.extend({title:_('System'),load:function(){return Promise.all([L.resolveDefault(callSystemBoard(),{}),L.resolveDefault(callSystemInfo(),{}),L.resolveDefault(callCPUInfo(),{}),fs.lines('/usr/lib/lua/luci/version.lua')]);},render:function(data){var boardinfo=data[0],systeminfo=data[1],cpuinfo=data[2],luciversion=data[3];luciversion=luciversion.filter(function(l){return l.match(/^\s*(luciname|luciversion)\s*=/);}).map(function(l){return l.replace(/^\s*\w+\s*=\s*['"]([^'"]+)['"].*$/,'$1');}).join(' ');var datestr=null;if(systeminfo.localtime){var date=new Date(systeminfo.localtime*1000);datestr='%04d-%02d-%02d %02d:%02d:%02d'.format(date.getUTCFullYear(),date.getUTCMonth()+1,date.getUTCDate(),date.getUTCHours(),date.getUTCMinutes(),date.getUTCSeconds());}
++var fields=[_('Hostname'),boardinfo.hostname,_('Model'),boardinfo.model+cpuinfo.cpumark,_('CPU Info'),boardinfo.system+' [ '+cpuinfo.cputemp+' ℃ / '+cpuinfo.cpufreq+' % ] ',_('Firmware Version'),(L.isObject(boardinfo.release)?boardinfo.release.description+' / ':'')+(luciversion||''),_('Kernel Version'),boardinfo.kernel,_('Local Time'),datestr,_('Uptime'),systeminfo.uptime?'%t'.format(systeminfo.uptime):null,_('Load Average'),Array.isArray(systeminfo.load)?'%.2f, %.2f, %.2f'.format(systeminfo.load[0]/65535.0,systeminfo.load[1]/65535.0,systeminfo.load[2]/65535.0):null];var table=E('div',{'class':'table'});for(var i=0;i<fields.length;i+=2){table.appendChild(E('div',{'class':'tr'},[E('div',{'class':'td left','width':'33%'},[fields[i]]),E('div',{'class':'td left'},[(fields[i+1]!=null)?fields[i+1]:'?'])]));}
++return table;}});
+diff -uprN a/package/own/luci2-cputemp/files/luci b/package/own/luci2-cputemp/files/luci
+--- a/package/own/luci2-cputemp/files/luci	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci2-cputemp/files/luci	2022-05-02 11:40:24.360594517 +0800
+@@ -0,0 +1,689 @@
++#!/usr/bin/env lua
++
++local json = require "luci.jsonc"
++local fs   = require "nixio.fs"
++
++local function readfile(path)
++	local s = fs.readfile(path)
++	return s and (s:gsub("^%s+", ""):gsub("%s+$", ""))
++end
++
++local methods = {
++	getInitList = {
++		args = { name = "name" },
++		call = function(args)
++			local sys = require "luci.sys"
++			local _, name, scripts = nil, nil, {}
++			for _, name in ipairs(args.name and { args.name } or sys.init.names()) do
++				local index = sys.init.index(name)
++				if index then
++					scripts[name] = { index = index, enabled = sys.init.enabled(name) }
++				else
++					return { error = "No such init script" }
++				end
++			end
++			return scripts
++		end
++	},
++
++	setInitAction = {
++		args = { name = "name", action = "action" },
++		call = function(args)
++			local sys = require "luci.sys"
++			if type(sys.init[args.action]) ~= "function" then
++				return { error = "Invalid action" }
++			end
++			return { result = sys.init[args.action](args.name) }
++		end
++	},
++
++	getLocaltime = {
++		call = function(args)
++			return { result = os.time() }
++		end
++	},
++
++	setLocaltime = {
++		args = { localtime = 0 },
++		call = function(args)
++			local sys = require "luci.sys"
++			local date = os.date("*t", args.localtime)
++			if date then
++				sys.call("date -s '%04d-%02d-%02d %02d:%02d:%02d' >/dev/null" %{ date.year, date.month, date.day, date.hour, date.min, date.sec })
++				sys.call("/etc/init.d/sysfixtime restart >/dev/null")
++			end
++			return { result = args.localtime }
++		end
++	},
++
++	getTimezones = {
++		call = function(args)
++			local util  = require "luci.util"
++			local zones = require "luci.sys.zoneinfo"
++
++			local tz = readfile("/etc/TZ")
++			local res = util.ubus("uci", "get", {
++				config = "system",
++				section = "@system[0]",
++				option = "zonename"
++			})
++
++			local result = {}
++			local _, zone
++			for _, zone in ipairs(zones.TZ) do
++				result[zone[1]] = {
++					tzstring = zone[2],
++					active = (res and res.value == zone[1]) and true or nil
++				}
++			end
++			return result
++		end
++	},
++
++	getLEDs = {
++		call = function()
++			local iter   = fs.dir("/sys/class/leds")
++			local result = { }
++
++			if iter then
++				local led
++				for led in iter do
++					local m, s
++
++					result[led] = { triggers = {} }
++
++					s = readfile("/sys/class/leds/"..led.."/trigger")
++					for s in (s or ""):gmatch("%S+") do
++						m = s:match("^%[(.+)%]$")
++						result[led].triggers[#result[led].triggers+1] = m or s
++						result[led].active_trigger = m or result[led].active_trigger
++					end
++
++					s = readfile("/sys/class/leds/"..led.."/brightness")
++					if s then
++						result[led].brightness = tonumber(s)
++					end
++
++					s = readfile("/sys/class/leds/"..led.."/max_brightness")
++					if s then
++						result[led].max_brightness = tonumber(s)
++					end
++				end
++			end
++
++			return result
++		end
++	},
++
++	getUSBDevices = {
++		call = function()
++			local fs     = require "nixio.fs"
++			local iter   = fs.glob("/sys/bus/usb/devices/[0-9]*/manufacturer")
++			local result = { }
++
++			if iter then
++				result.devices = {}
++
++				local p
++				for p in iter do
++					local id = p:match("/([^/]+)/manufacturer$")
++
++					result.devices[#result.devices+1] = {
++						id      = id,
++						vid     = readfile("/sys/bus/usb/devices/"..id.."/idVendor"),
++						pid     = readfile("/sys/bus/usb/devices/"..id.."/idProduct"),
++						vendor  = readfile("/sys/bus/usb/devices/"..id.."/manufacturer"),
++						product = readfile("/sys/bus/usb/devices/"..id.."/product"),
++						speed   = tonumber((readfile("/sys/bus/usb/devices/"..id.."/product")))
++					}
++				end
++			end
++
++			iter = fs.glob("/sys/bus/usb/devices/*/*-port[0-9]*")
++
++			if iter then
++				result.ports = {}
++
++				local p
++				for p in iter do
++					local port = p:match("([^/]+)$")
++					local link = fs.readlink(p.."/device")
++
++					result.ports[#result.ports+1] = {
++						port   = port,
++						device = link and fs.basename(link)
++					}
++				end
++			end
++
++			return result
++		end
++	},
++
++	getConntrackHelpers = {
++		call = function()
++			local ok, fd = pcall(io.open, "/usr/share/fw3/helpers.conf", "r")
++			local rv = {}
++
++			if ok then
++				local entry
++
++				while true do
++					local line = fd:read("*l")
++					if not line then
++						break
++					end
++
++					if line:match("^%s*config%s") then
++						if entry then
++							rv[#rv+1] = entry
++						end
++						entry = {}
++					else
++						local opt, val = line:match("^%s*option%s+(%S+)%s+(%S.*)$")
++						if opt and val then
++							opt = opt:gsub("^'(.+)'$", "%1"):gsub('^"(.+)"$', "%1")
++							val = val:gsub("^'(.+)'$", "%1"):gsub('^"(.+)"$', "%1")
++							entry[opt] = val
++						end
++					end
++				end
++
++				if entry then
++					rv[#rv+1] = entry
++				end
++
++				fd:close()
++			end
++
++			return { result = rv }
++		end
++	},
++
++	getFeatures = {
++		call = function()
++			local fs = require "nixio.fs"
++			local rv = {}
++			local ok, fd
++
++			rv.firewall      = fs.access("/sbin/fw3")
++			rv.opkg          = fs.access("/bin/opkg")
++			rv.offloading    = fs.access("/sys/module/xt_FLOWOFFLOAD/refcnt")
++			rv.br2684ctl     = fs.access("/usr/sbin/br2684ctl")
++			rv.swconfig      = fs.access("/sbin/swconfig")
++			rv.odhcpd        = fs.access("/usr/sbin/odhcpd")
++			rv.zram          = fs.access("/sys/class/zram-control")
++			rv.sysntpd       = fs.readlink("/usr/sbin/ntpd") and true
++			rv.ipv6          = fs.access("/proc/net/ipv6_route")
++			rv.dropbear      = fs.access("/usr/sbin/dropbear")
++			rv.cabundle      = fs.access("/etc/ssl/certs/ca-certificates.crt")
++			rv.relayd        = fs.access("/usr/sbin/relayd")
++
++			local wifi_features = { "eap", "11n", "11ac", "11r", "11w", "acs", "sae", "owe", "suiteb192" }
++
++			if fs.access("/usr/sbin/hostapd") then
++				rv.hostapd = { cli = fs.access("/usr/sbin/hostapd_cli") }
++
++				local _, feature
++				for _, feature in ipairs(wifi_features) do
++					rv.hostapd[feature] =
++						(os.execute(string.format("/usr/sbin/hostapd -v%s >/dev/null 2>/dev/null", feature)) == 0)
++				end
++			end
++
++			if fs.access("/usr/sbin/wpa_supplicant") then
++				rv.wpasupplicant = { cli = fs.access("/usr/sbin/wpa_cli") }
++
++				local _, feature
++				for _, feature in ipairs(wifi_features) do
++					rv.wpasupplicant[feature] =
++						(os.execute(string.format("/usr/sbin/wpa_supplicant -v%s >/dev/null 2>/dev/null", feature)) == 0)
++				end
++			end
++
++			ok, fd = pcall(io.popen, "dnsmasq --version 2>/dev/null")
++			if ok then
++				rv.dnsmasq = {}
++
++				while true do
++					local line = fd:read("*l")
++					if not line then
++						break
++					end
++
++					local opts = line:match("^Compile time options: (.+)$")
++					if opts then
++						local opt
++						for opt in opts:gmatch("%S+") do
++							local no = opt:match("^no%-(%S+)$")
++							rv.dnsmasq[string.lower(no or opt)] = not no
++						end
++						break
++					end
++				end
++
++				fd:close()
++			end
++
++			ok, fd = pcall(io.popen, "ipset --help 2>/dev/null")
++			if ok then
++				rv.ipset = {}
++
++				local sets = false
++
++				while true do
++					local line = fd:read("*l")
++					if not line then
++						break
++					elseif line:match("^Supported set types:") then
++						sets = true
++					elseif sets then
++						local set, ver = line:match("^%s+(%S+)%s+(%d+)")
++						if set and not rv.ipset[set] then
++							rv.ipset[set] = tonumber(ver)
++						end
++					end
++				end
++
++				fd:close()
++			end
++
++			return rv
++		end
++	},
++
++	getSwconfigFeatures = {
++		args = { switch = "switch0" },
++		call = function(args)
++			local util = require "luci.util"
++
++			-- Parse some common switch properties from swconfig help output.
++			local swc, err = io.popen("swconfig dev %s help 2>/dev/null" % util.shellquote(args.switch))
++			if swc then
++				local is_port_attr = false
++				local is_vlan_attr = false
++				local rv = {}
++
++				while true do
++					local line = swc:read("*l")
++					if not line then break end
++
++					if line:match("^%s+%-%-vlan") then
++						is_vlan_attr = true
++
++					elseif line:match("^%s+%-%-port") then
++						is_vlan_attr = false
++						is_port_attr = true
++
++					elseif line:match("cpu @") then
++						rv.switch_title = line:match("^switch%d: %w+%((.-)%)")
++						rv.num_vlans    = tonumber(line:match("vlans: (%d+)")) or 16
++						rv.min_vid      = 1
++
++					elseif line:match(": pvid") or line:match(": tag") or line:match(": vid") then
++						if is_vlan_attr then rv.vid_option = line:match(": (%w+)") end
++
++					elseif line:match(": enable_vlan4k") then
++						rv.vlan4k_option = "enable_vlan4k"
++
++					elseif line:match(": enable_vlan") then
++						rv.vlan_option = "enable_vlan"
++
++					elseif line:match(": enable_learning") then
++						rv.learning_option = "enable_learning"
++
++					elseif line:match(": enable_mirror_rx") then
++						rv.mirror_option = "enable_mirror_rx"
++
++					elseif line:match(": max_length") then
++						rv.jumbo_option = "max_length"
++					end
++				end
++
++				swc:close()
++
++				if not next(rv) then
++					return { error = "No such switch" }
++				end
++
++				return rv
++			else
++				return { error = err }
++			end
++		end
++	},
++
++	getSwconfigPortState = {
++		args = { switch = "switch0" },
++		call = function(args)
++			local util = require "luci.util"
++
++			local swc, err = io.popen("swconfig dev %s show 2>/dev/null" % util.shellquote(args.switch))
++			if swc then
++				local ports = { }
++
++				while true do
++					local line = swc:read("*l")
++					if not line or (line:match("^VLAN %d+:") and #ports > 0) then
++						break
++					end
++
++					local pnum = line:match("^Port (%d+):")
++					if pnum then
++						port = {
++							port = tonumber(pnum),
++							duplex = false,
++							speed = 0,
++							link = false,
++							auto = false,
++							rxflow = false,
++							txflow = false
++						}
++
++						ports[#ports+1] = port
++					end
++
++					if port then
++						local m
++
++						if line:match("full[%- ]duplex") then
++							port.duplex = true
++						end
++
++						m = line:match(" speed:(%d+)")
++						if m then
++							port.speed = tonumber(m)
++						end
++
++						m = line:match("(%d+) Mbps")
++						if m and port.speed == 0 then
++							port.speed = tonumber(m)
++						end
++
++						m = line:match("link: (%d+)")
++						if m and port.speed == 0 then
++							port.speed = tonumber(m)
++						end
++
++						if line:match("link: ?up") or line:match("status: ?up") then
++							port.link = true
++						end
++
++						if line:match("auto%-negotiate") or line:match("link:.-auto") then
++							port.auto = true
++						end
++
++						if line:match("link:.-rxflow") then
++							port.rxflow = true
++						end
++
++						if line:match("link:.-txflow") then
++							port.txflow = true
++						end
++					end
++				end
++
++				swc:close()
++
++				if not next(ports) then
++					return { error = "No such switch" }
++				end
++
++				return { result = ports }
++			else
++				return { error = err }
++			end
++		end
++	},
++
++	setPassword = {
++		args = { username = "root", password = "password" },
++		call = function(args)
++			local util = require "luci.util"
++			return {
++				result = (os.execute("(echo %s; sleep 1; echo %s) | passwd %s >/dev/null 2>&1" %{
++					luci.util.shellquote(args.password),
++					luci.util.shellquote(args.password),
++					luci.util.shellquote(args.username)
++				}) == 0)
++			}
++		end
++	},
++
++	getBlockDevices = {
++		call = function()
++			local fs = require "nixio.fs"
++
++			local block = io.popen("/sbin/block info", "r")
++			if block then
++				local rv = {}
++
++				while true do
++					local ln = block:read("*l")
++					if not ln then
++						break
++					end
++
++					local dev = ln:match("^/dev/(.-):")
++					if dev then
++						local s = tonumber((fs.readfile("/sys/class/block/" .. dev .."/size")))
++						local e = {
++							dev = "/dev/" .. dev,
++							size = s and s * 512
++						}
++
++						local key, val = { }
++						for key, val in ln:gmatch([[(%w+)="(.-)"]]) do
++							e[key:lower()] = val
++						end
++
++						rv[dev] = e
++					end
++				end
++
++				block:close()
++
++				return rv
++			else
++				return { error = "Unable to execute block utility" }
++			end
++		end
++	},
++
++	setBlockDetect = {
++		call = function()
++			return { result = (os.execute("/sbin/block detect > /etc/config/fstab") == 0) }
++		end
++	},
++
++	getMountPoints = {
++		call = function()
++			local fs = require "nixio.fs"
++
++			local fd, err = io.open("/proc/mounts", "r")
++			if fd then
++				local rv = {}
++
++				while true do
++					local ln = fd:read("*l")
++					if not ln then
++						break
++					end
++
++					local device, mount, fstype, options, freq, pass = ln:match("^(%S*) (%S*) (%S*) (%S*) (%d+) (%d+)$")
++					if device and mount then
++						device = device:gsub("\\(%d+)", function(n) return string.char(tonumber(n, 8)) end)
++						mount = mount:gsub("\\(%d+)", function(n) return string.char(tonumber(n, 8)) end)
++
++						local stat = fs.statvfs(mount)
++						if stat and stat.blocks > 0 then
++							rv[#rv+1] = {
++								device = device,
++								mount  = mount,
++								size   = stat.bsize * stat.blocks,
++								avail  = stat.bsize * stat.bavail,
++								free   = stat.bsize * stat.bfree
++							}
++						end
++					end
++				end
++
++				fd:close()
++
++				return { result = rv }
++			else
++				return { error = err }
++			end
++		end
++	},
++
++	getRealtimeStats = {
++		args = { mode = "interface", device = "eth0" },
++		call = function(args)
++			local util = require "luci.util"
++
++			local flags
++			if args.mode == "interface" then
++				flags = "-i %s" % util.shellquote(args.device)
++			elseif args.mode == "wireless" then
++				flags = "-r %s" % util.shellquote(args.device)
++			elseif args.mode == "conntrack" then
++				flags = "-c"
++			elseif args.mode == "load" then
++				flags = "-l"
++			else
++				return { error = "Invalid mode" }
++			end
++
++			local fd, err = io.popen("luci-bwc %s" % flags, "r")
++			if fd then
++				local parse = json.new()
++				local done
++
++				parse:parse("[")
++
++				while true do
++					local ln = fd:read("*l")
++					if not ln then
++						break
++					end
++
++					done, err = parse:parse((ln:gsub("%d+", "%1.0")))
++
++					if done then
++						err = "Unexpected JSON data"
++					end
++
++					if err then
++						break
++					end
++				end
++
++				fd:close()
++
++				done, err = parse:parse("]")
++
++				if err then
++					return { error = err }
++				elseif not done then
++					return { error = "Incomplete JSON data" }
++				else
++					return { result = parse:get() }
++				end
++			else
++				return { error = err }
++			end
++		end
++	},
++
++	getConntrackList = {
++		call = function()
++			local sys = require "luci.sys"
++			return { result = sys.net.conntrack() }
++		end
++	},
++
++	getProcessList = {
++		call = function()
++			local sys = require "luci.sys"
++			local res = {}
++			for _, v in pairs(sys.process.list()) do
++				res[#res + 1] = v
++			end
++			return { result = res }
++		end
++	},
++
++	getCPUInfo = {
++		call = function()
++			local sys = require "luci.sys"
++			local rv = {}
++			
++			rv.cpufreq      = sys.exec("echo $( echo $(cat /proc/stat | grep \"^cpu \" | awk '{print $1+$2+$3+$4+$5+$6+$7 \" \" $1+$2+$3+$6+$7}') $(sleep 1 && cat /proc/stat | grep \"^cpu \" | awk '{print $1+$2+$3+$4+$5+$6+$7 \" \" $1+$2+$3+$6+$7}') | awk '{print (($4-$2)/($3-$1))*100}' | cut -c1-4)")
++			rv.cputemp      = sys.exec("cat /sys/class/thermal/thermal_zone0/temp | awk '{print $1/1000}' | cut -c1-4")
++            rv.cpumark      = sys.exec("cat /etc/bench.log")
++			return rv
++		end
++	}
++}
++
++local function parseInput()
++	local parse = json.new()
++	local done, err
++
++	while true do
++		local chunk = io.read(4096)
++		if not chunk then
++			break
++		elseif not done and not err then
++			done, err = parse:parse(chunk)
++		end
++	end
++
++	if not done then
++		print(json.stringify({ error = err or "Incomplete input" }))
++		os.exit(1)
++	end
++
++	return parse:get()
++end
++
++local function validateArgs(func, uargs)
++	local method = methods[func]
++	if not method then
++		print(json.stringify({ error = "Method not found" }))
++		os.exit(1)
++	end
++
++	if type(uargs) ~= "table" then
++		print(json.stringify({ error = "Invalid arguments" }))
++		os.exit(1)
++	end
++
++	uargs.ubus_rpc_session = nil
++
++	local k, v
++	local margs = method.args or {}
++	for k, v in pairs(uargs) do
++		if margs[k] == nil or
++		   (v ~= nil and type(v) ~= type(margs[k]))
++		then
++			print(json.stringify({ error = "Invalid arguments" }))
++			os.exit(1)
++		end
++	end
++
++	return method
++end
++
++if arg[1] == "list" then
++	local _, method, rv = nil, nil, {}
++	for _, method in pairs(methods) do rv[_] = method.args or {} end
++	print((json.stringify(rv):gsub(":%[%]", ":{}")))
++elseif arg[1] == "call" then
++	local args = parseInput()
++	local method = validateArgs(arg[2], args)
++	local result, code = method.call(args)
++	print((json.stringify(result):gsub("^%[%]$", "{}")))
++	os.exit(code or 0)
++end
+diff -uprN a/package/own/luci2-cputemp/files/luci-base.json b/package/own/luci2-cputemp/files/luci-base.json
+--- a/package/own/luci2-cputemp/files/luci-base.json	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci2-cputemp/files/luci-base.json	2022-05-02 11:40:24.360594517 +0800
+@@ -0,0 +1,129 @@
++{
++	"unauthenticated": {
++		"description": "Allow system feature probing",
++		"read": {
++			"ubus": {
++				"luci": [ "getFeatures" ]
++			}
++		}
++	},
++
++	"uci-access": {
++		"description": "Grant uci write access to all configurations",
++		"read": {
++			"uci": [ "*" ]
++		},
++		"write": {
++			"uci": [ "*" ]
++		}
++	},
++	"luci-access": {
++		"description": "Grant access to basic LuCI procedures",
++		"read": {
++			"cgi-io": [ "backup", "download", "exec" ],
++			"file": {
++				"/": [ "list" ],
++				"/*": [ "list" ],
++				"/dev/mtdblock*": [ "read" ],
++				"/etc/crontabs/root": [ "read" ],
++				"/etc/dropbear/authorized_keys": [ "read" ],
++				"/etc/filesystems": [ "read" ],
++				"/etc/rc.local": [ "read" ],
++				"/etc/sysupgrade.conf": [ "read" ],
++				"/etc/passwd": [ "read" ],
++				"/etc/group": [ "read" ],
++				"/proc/filesystems": [ "read" ],
++				"/proc/mtd": [ "read" ],
++				"/proc/partitions": [ "read" ],
++				"/proc/sys/kernel/hostname": [ "read" ],
++				"/proc/sys/net/netfilter/nf_conntrack_*": [ "read" ],
++				"/proc/mounts": [ "read" ],
++				"/usr/lib/lua/luci/version.lua": [ "read" ],
++				"/bin/dmesg -r": [ "exec" ],
++				"/bin/ping *": [ "exec" ],
++				"/bin/ping6 *": [ "exec" ],
++				"/bin/traceroute *": [ "exec" ],
++				"/bin/traceroute6 *": [ "exec" ],
++				"/sbin/ip -4 neigh show": [ "exec" ],
++				"/sbin/ip -4 route show table all": [ "exec" ],
++				"/sbin/ip -6 neigh show": [ "exec" ],
++				"/sbin/ip -6 route show table all": [ "exec" ],
++				"/sbin/logread -e ^": [ "exec" ],
++				"/usr/sbin/logread -e ^": [ "exec" ],
++				"/usr/bin/ping *": [ "exec" ],
++				"/usr/bin/ping6 *": [ "exec" ],
++				"/usr/bin/traceroute *": [ "exec" ],
++				"/usr/bin/traceroute6 *": [ "exec" ],
++				"/usr/bin/nslookup *": [ "exec" ],
++				"/usr/libexec/luci-peeraddr": [ "exec" ],
++				"/usr/sbin/iptables --line-numbers -w -nvxL -t *": [ "exec" ],
++				"/usr/sbin/ip6tables --line-numbers -w -nvxL -t *": [ "exec" ]
++			},
++			"ubus": {
++				"file": [ "list", "read", "stat" ],
++				"iwinfo": [ "assoclist", "freqlist", "txpowerlist", "countrylist" ],
++				"luci": [ "getConntrackList", "getInitList", "getLocaltime", "getProcessList", "getRealtimeStats", "getTimezones", "getLEDs", "getUSBDevices", "getSwconfigFeatures", "getSwconfigPortState", "getBlockDevices", "getMountPoints", "getCPUInfo" ],
++				"luci-rpc": [ "getBoardJSON", "getDHCPLeases", "getDSLStatus", "getDUIDHints", "getHostHints", "getNetworkDevices", "getWirelessDevices" ],
++				"network.interface": [ "dump" ],
++				"network.rrdns": [ "lookup" ],
++				"network": [ "get_proto_handlers" ],
++				"system": [ "board", "info", "validate_firmware_image" ],
++				"uci": [ "changes", "get" ]
++			},
++			"uci": [ "*" ]
++		},
++		"write": {
++			"cgi-io": [ "upload" ],
++			"file": {
++				"/etc/crontabs/root": [ "write" ],
++				"/etc/dropbear/authorized_keys": [ "write" ],
++				"/etc/init.d/firewall restart": [ "exec" ],
++				"/etc/luci-uploads/*": [ "write" ],
++				"/etc/rc.local": [ "write" ],
++				"/etc/sysupgrade.conf": [ "write" ],
++				"/sbin/block": [ "exec" ],
++				"/sbin/firstboot": [ "exec" ],
++				"/sbin/ifdown": [ "exec" ],
++				"/sbin/ifup": [ "exec" ],
++				"/sbin/reboot": [ "exec" ],
++				"/sbin/sysupgrade": [ "exec" ],
++				"/sbin/wifi": [ "exec" ],
++				"/bin/kill": [ "exec" ],
++				"/bin/tar": [ "exec" ],
++				"/bin/umount": [ "exec" ],
++				"/tmp/backup.tar.gz": [ "write" ],
++				"/tmp/firmware.bin": [ "write" ],
++				"/tmp/upload.ipk": [ "write" ],
++				"/usr/sbin/iptables -Z": [ "exec" ],
++				"/usr/sbin/ip6tables -Z": [ "exec" ]
++			},
++			"ubus": {
++				"file": [ "write", "remove", "exec" ],
++				"hostapd.*": [ "del_client" ],
++				"iwinfo": [ "scan" ],
++				"luci": [ "setInitAction", "setLocaltime", "setPassword", "setBlockDetect" ],
++				"uci": [ "add", "apply", "confirm", "delete", "order", "set", "rename" ]
++			},
++			"uci": [ "*" ]
++		}
++	},
++	"luci-app-firewall": {
++		"description": "Grant access to firewall procedures",
++		"read": {
++			"file": {
++				"/etc/firewall.user": [ "read" ]
++			},
++			"ubus": {
++				"luci": [ "getConntrackHelpers" ]
++			},
++			"uci": [ "firewall" ]
++		},
++		"write": {
++			"file": {
++				"/etc/firewall.user": [ "write" ],
++				"/etc/init.d/firewall": [ "exec" ]
++			},
++			"uci": [ "firewall" ]
++		}
++	}
++}
+diff -uprN a/package/own/luci2-cputemp/files/upnp_status.htm b/package/own/luci2-cputemp/files/upnp_status.htm
+--- a/package/own/luci2-cputemp/files/upnp_status.htm	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci2-cputemp/files/upnp_status.htm	2022-06-11 13:45:29.247638272 +0800
+@@ -0,0 +1,54 @@
++<script type="text/javascript">//<![CDATA[
++	function upnp_delete_fwd(idx) {
++		(new XHR()).post('<%=url('admin/services/upnp/delete')%>/' + idx, { token: '<%=token%>' },
++			function(x)
++			{
++				var tb = document.getElementById('upnp_status_table');
++				if (tb && (idx + 1 < tb.childNodes.length))
++					tb.removeChild(tb.childNodes[idx + 1]);
++			}
++		);
++	}
++
++	XHR.poll(-1, '<%=url('admin/services/upnp/status')%>', null,
++		function(x, st)
++		{
++			var tb = document.getElementById('upnp_status_table');
++			if (st && tb)
++			{
++				var rows = [];
++
++				for (var i = 0; i < st.length; i++)
++					rows.push([
++						st[i].proto,
++						st[i].extport,
++						st[i].intaddr,
++						st[i].host_hint || "<%:Unknown%>",
++						st[i].intport,
++						st[i].descr,
++						E('<div><input class="cbi-button cbi-button-remove" type="button" value="<%:Delete%>" onclick="upnp_delete_fwd(%d)" /></div>'.format(st[i].num))
++					]);
++
++				cbi_update_table(tb, rows, '<em><%:There are no active redirects.%></em>');
++			}
++		}
++	);
++//]]></script>
++
++<div class="cbi-section">
++	<h3><%:Active UPnP Redirects%></h3>
++	<div class="table" id="upnp_status_table">
++		<div class="tr table-titles">
++			<div class="th"><%:Protocol%></div>
++			<div class="th"><%:External Port%></div>
++			<div class="th"><%:Client Address%></div>
++			<div class="th"><%:Host%></div>
++			<div class="th"><%:Client Port%></div>
++			<div class="th"><%:Description%></div>
++			<div class="th cbi-section-actions">&#160;</div>
++		</div>
++		<div class="tr placeholder">
++			<div class="td"><em><%:Collecting data...%></em></div>
++		</div>
++	</div>
++</div>
+diff -uprN a/package/own/luci2-cputemp/Makefile b/package/own/luci2-cputemp/Makefile
+--- a/package/own/luci2-cputemp/Makefile	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci2-cputemp/Makefile	2022-08-06 15:37:08.525649162 +0800
+@@ -0,0 +1,37 @@
++#
++# Copyright (C) 2010-2011 OpenWrt.org
++#
++# This is free software, licensed under the GNU General Public License v2.
++# See /LICENSE for more information.
++#
++
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=luci2-cputemp
++PKG_VERSION:=1
++PKG_RELEASE:=1
++
++include $(INCLUDE_DIR)/package.mk
++
++define Package/luci2-cputemp
++  TITLE:=Display CPU temperature for arm
++  MAINTAINER:=javonca
++  DEPENDS:=+@LUCI_LANG_zh_Hans
++  VARIANT:=arm
++endef
++
++define Package/luci2-cputemp/description
++  Display CPU temperature for arm.
++endef
++
++define Build/Compile
++endef
++
++define Package/luci2-cputemp/install
++	$(INSTALL_DIR) $(1)/etc
++	cp -pR ./files/* $(1)/etc
++	$(INSTALL_DIR) $(1)/etc/uci-defaults
++	$(INSTALL_BIN) ./uci-defaults/090-cover-default $(1)/etc/uci-defaults/090-cover-default
++endef
++
++$(eval $(call BuildPackage,luci2-cputemp))
+diff -uprN a/package/own/luci2-cputemp/uci-defaults/090-cover-default b/package/own/luci2-cputemp/uci-defaults/090-cover-default
+--- a/package/own/luci2-cputemp/uci-defaults/090-cover-default	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci2-cputemp/uci-defaults/090-cover-default	2022-06-11 13:45:29.247638272 +0800
+@@ -0,0 +1,8 @@
++#!/bin/sh
++
++[ -f /etc/10_system.js ] && mv /etc/10_system.js /www/luci-static/resources/view/status/include/10_system.js
++[ -f /etc/luci ] && mv /etc/luci /usr/libexec/rpcd/luci
++[ -f /etc/luci-base.json ] && mv /etc/luci-base.json /usr/share/rpcd/acl.d/luci-base.json
++[ -f /etc/upnp_status.htm ] && mv /etc/upnp_status.htm /usr/lib/lua/luci/view/upnp_status.htm
++
++exit 0
+diff -uprN a/package/own/luci-this-h3h5/files/index.htm b/package/own/luci-this-h3h5/files/index.htm
+--- a/package/own/luci-this-h3h5/files/index.htm	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci-this-h3h5/files/index.htm	2022-05-02 11:40:24.360594517 +0800
+@@ -0,0 +1,815 @@
++<%#
++ Copyright 2008 Steven Barth <steven@midlink.org>
++ Copyright 2008-2011 Jo-Philipp Wich <jow@openwrt.org>
++ Licensed to the public under the Apache License 2.0.
++-%>
++
++<%
++	local fs = require "nixio.fs"
++	local util = require "luci.util"
++	local stat = require "luci.tools.status"
++	local ver = require "luci.version"
++
++	local has_ipv6 = fs.access("/usr/sbin/ip6tables")
++	local has_dhcp = fs.access("/etc/config/dhcp")
++	local has_wifi = ((fs.stat("/etc/config/wireless", "size") or 0) > 0)
++
++	local sysinfo = luci.util.ubus("system", "info") or { }
++	local boardinfo = luci.util.ubus("system", "board") or { }
++	local unameinfo = nixio.uname() or { }
++
++	local meminfo = sysinfo.memory or {
++		total = 0,
++		free = 0,
++		buffered = 0,
++		shared = 0
++	}
++	
++	local mem_cached = luci.sys.exec("sed -e '/^Cached: /!d; s#Cached: *##; s# kB##g' /proc/meminfo")
++
++	local swapinfo = sysinfo.swap or {
++		total = 0,
++		free = 0
++	}
++
++	local has_dsl = fs.access("/etc/init.d/dsl_control")
++
++	if luci.http.formvalue("status") == "1" then
++		local ntm = require "luci.model.network".init()
++		local wan = ntm:get_wannet()
++		local wan6 = ntm:get_wan6net()
++
++		local conn_count = tonumber(
++			fs.readfile("/proc/sys/net/netfilter/nf_conntrack_count") or "") or 0
++
++		local conn_max = tonumber(luci.sys.exec(
++			"sysctl -n -e net.nf_conntrack_max net.ipv4.netfilter.ip_conntrack_max"
++		):match("%d+")) or 4096
++		
++		local user_info = luci.sys.exec("cat /proc/net/arp | grep 'br-lan' | grep '0x2' | wc -l")
++		
++		local cpu_info = (luci.sys.exec("cat /sys/class/thermal/thermal_zone0/temp | awk '{print $1/1000}' | cut -c1-4")).. " ℃ / "
++
++		local cpu_usage = cpu_info .. (luci.sys.exec("expr 100 - $(top -n 1 | grep 'CPU:' | awk -F '%' '{print$4}' | awk -F ' ' '{print$2}')") or "6") .. "%"
++
++		local rv = {
++			cpuusage    = cpu_usage,
++			userinfo    = user_info,
++			uptime     = sysinfo.uptime or 0,
++			localtime  = os.date(),
++			loadavg    = sysinfo.load or { 0, 0, 0 },
++			memory     = meminfo,
++			memcached  = mem_cached,
++			swap       = swapinfo,
++			connmax    = conn_max,
++			conncount  = conn_count,
++			leases     = stat.dhcp_leases(),
++			leases6    = stat.dhcp6_leases(),
++			wifinets   = stat.wifi_networks()
++		}
++
++		if wan then
++			rv.wan = {
++				ipaddr  = wan:ipaddr(),
++				gwaddr  = wan:gwaddr(),
++				netmask = wan:netmask(),
++				dns     = wan:dnsaddrs(),
++				expires = wan:expires(),
++				uptime  = wan:uptime(),
++				proto   = wan:proto(),
++				ifname  = wan:ifname(),
++				link    = wan:adminlink()
++			}
++		end
++
++		if wan6 then
++			rv.wan6 = {
++				ip6addr   = wan6:ip6addr(),
++				gw6addr   = wan6:gw6addr(),
++				dns       = wan6:dns6addrs(),
++				ip6prefix = wan6:ip6prefix(),
++				uptime    = wan6:uptime(),
++				proto     = wan6:proto(),
++				ifname    = wan6:ifname(),
++				link      = wan6:adminlink()
++			}
++		end
++
++		if has_dsl then
++			local dsl_stat = luci.sys.exec("/etc/init.d/dsl_control lucistat")
++			local dsl_func = loadstring(dsl_stat)
++			if dsl_func then
++				rv.dsl = dsl_func()
++			end
++		end
++
++		luci.http.prepare_content("application/json")
++		luci.http.write_json(rv)
++
++		return
++	elseif luci.http.formvalue("hosts") == "1" then
++		luci.http.prepare_content("application/json")
++		luci.http.write_json(luci.sys.net.host_hints())
++
++		return
++	end
++-%>
++
++<%+header%>
++
++<script type="text/javascript" src="<%=resource%>/cbi.js?v=git-21.114.56541-974fb04"></script>
++<script type="text/javascript">//<![CDATA[
++	function progressbar(v, m)
++	{
++		var vn = parseInt(v) || 0;
++		var mn = parseInt(m) || 100;
++		var pc = Math.floor((100 / mn) * vn);
++
++		return String.format(
++			'<div style="width:200px; position:relative; border:1px solid #999999">' +
++				'<div style="background-color:#CCCCCC; width:%d%%; height:15px">' +
++					'<div style="position:absolute; left:0; top:0; text-align:center; width:100%%; color:#000000">' +
++						'<small>%s / %s (%d%%)</small>' +
++					'</div>' +
++				'</div>' +
++			'</div>', pc, v, m, pc
++		);
++	}
++
++	function wifirate(bss, rx) {
++		var p = rx ? 'rx_' : 'tx_',
++		    s = '%.1f <%:Mbit/s%>, %d<%:MHz%>'
++					.format(bss[p+'rate'] / 1000, bss[p+'mhz']),
++		    ht = bss[p+'ht'], vht = bss[p+'vht'],
++			mhz = bss[p+'mhz'], nss = bss[p+'nss'],
++			mcs = bss[p+'mcs'], sgi = bss[p+'short_gi'];
++
++		if (ht || vht) {
++			if (vht) s += ', VHT-MCS %d'.format(mcs);
++			if (nss) s += ', VHT-NSS %d'.format(nss);
++			if (ht)  s += ', MCS %s'.format(mcs);
++			if (sgi) s += ', <%:Short GI%>';
++		}
++
++		return s;
++	}
++
++	function duid2mac(duid) {
++		// DUID-LLT / Ethernet
++		if (duid.length === 28 && duid.substr(0, 8) === '00010001')
++			return duid.substr(16).replace(/(..)(?=..)/g, '$1:').toUpperCase();
++
++		// DUID-LL / Ethernet
++		if (duid.length === 20 && duid.substr(0, 8) === '00030001')
++			return duid.substr(8).replace(/(..)(?=..)/g, '$1:').toUpperCase();
++
++		return null;
++	}
++
++	var npoll = 1;
++	var hosts = <%=luci.http.write_json(luci.sys.net.host_hints())%>;
++
++	function updateHosts() {
++		XHR.get('<%=REQUEST_URI%>', { hosts: 1 }, function(x, data) {
++			hosts = data;
++		});
++	}
++
++	XHR.poll(5, '<%=REQUEST_URI%>', { status: 1 },
++		function(x, info)
++		{
++			if (!(npoll++ % 5))
++				updateHosts();
++
++			var si = document.getElementById('wan4_i');
++			var ss = document.getElementById('wan4_s');
++			var ifc = info.wan;
++
++			if (ifc && ifc.ifname && ifc.proto != 'none')
++			{
++				var s = String.format(
++					'<strong><%:Type%>: </strong>%s<br />' +
++					'<strong><%:Address%>: </strong>%s<br />' +
++					'<strong><%:Netmask%>: </strong>%s<br />' +
++					'<strong><%:Gateway%>: </strong>%s<br />',
++						ifc.proto,
++						(ifc.ipaddr) ? ifc.ipaddr : '0.0.0.0',
++						(ifc.netmask && ifc.netmask != ifc.ipaddr) ? ifc.netmask : '255.255.255.255',
++						(ifc.gwaddr) ? ifc.gwaddr : '0.0.0.0'
++				);
++
++				for (var i = 0; i < ifc.dns.length; i++)
++				{
++					s += String.format(
++						'<strong><%:DNS%> %d: </strong>%s<br />',
++						i + 1, ifc.dns[i]
++					);
++				}
++
++				if (ifc.expires > -1)
++				{
++					s += String.format(
++						'<strong><%:Expires%>: </strong>%t<br />',
++						ifc.expires
++					);
++				}
++
++				if (ifc.uptime > 0)
++				{
++					s += String.format(
++						'<strong><%:Connected%>: </strong>%t<br />',
++						ifc.uptime
++					);
++				}
++
++				ss.innerHTML = String.format('<small>%s</small>', s);
++				si.innerHTML = String.format(
++					'<img src="<%=resource%>/icons/ethernet.png" />' +
++					'<br /><small><a href="%s">%s</a></small>',
++						ifc.link, ifc.ifname
++				);
++			}
++			else
++			{
++				si.innerHTML = '<img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small>';
++				ss.innerHTML = '<em><%:Not connected%></em>';
++			}
++
++			<% if has_ipv6 then %>
++			var si6 = document.getElementById('wan6_i');
++			var ss6 = document.getElementById('wan6_s');
++			var ifc6 = info.wan6;
++
++			if (ifc6 && ifc6.ifname && ifc6.proto != 'none')
++			{
++				var s = String.format(
++					'<strong><%:Type%>: </strong>%s%s<br />',
++						ifc6.proto, (ifc6.ip6prefix) ? '-pd' : ''
++				);
++				
++				if (!ifc6.ip6prefix)
++				{
++					s += String.format(
++						'<strong><%:Address%>: </strong>%s<br />',
++						(ifc6.ip6addr) ? ifc6.ip6addr : '::'
++					);
++				}
++				else
++				{
++					s += String.format(
++						'<strong><%:Prefix Delegated%>: </strong>%s<br />',
++						ifc6.ip6prefix
++					);
++					if (ifc6.ip6addr)
++					{
++						s += String.format(
++							'<strong><%:Address%>: </strong>%s<br />',
++							ifc6.ip6addr
++						);
++					}
++				}
++
++				s += String.format(
++					'<strong><%:Gateway%>: </strong>%s<br />',
++						(ifc6.gw6addr) ? ifc6.gw6addr : '::'
++				);
++
++				for (var i = 0; i < ifc6.dns.length; i++)
++				{
++					s += String.format(
++						'<strong><%:DNS%> %d: </strong>%s<br />',
++						i + 1, ifc6.dns[i]
++					);
++				}
++
++				if (ifc6.uptime > 0)
++				{
++					s += String.format(
++						'<strong><%:Connected%>: </strong>%t<br />',
++						ifc6.uptime
++					);
++				}
++
++				ss6.innerHTML = String.format('<small>%s</small>', s);
++				si6.innerHTML = String.format(
++					'<img src="<%=resource%>/icons/ethernet.png" />' +
++					'<br /><small><a href="%s">%s</a></small>',
++						ifc6.link, ifc6.ifname
++				);
++			}
++			else
++			{
++				si6.innerHTML = '<img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small>';
++				ss6.innerHTML = '<em><%:Not connected%></em>';
++			}
++			<% end %>
++
++			<% if has_dsl then %>
++				var dsl_i = document.getElementById('dsl_i');
++				var dsl_s = document.getElementById('dsl_s');
++
++				var s = String.format(
++					'<strong><%:Status%>: </strong>%s<br />' +
++					'<strong><%:Line State%>: </strong>%s [0x%x]<br />' +
++					'<strong><%:Line Mode%>: </strong>%s<br />' +
++					'<strong><%:Annex%>: </strong>%s<br />' +
++					'<strong><%:Profile%>: </strong>%s<br />' +
++					'<strong><%:Data Rate%>: </strong>%s/s / %s/s<br />' +
++					'<strong><%:Max. Attainable Data Rate (ATTNDR)%>: </strong>%s/s / %s/s<br />' +
++					'<strong><%:Latency%>: </strong>%s / %s<br />' +
++					'<strong><%:Line Attenuation (LATN)%>: </strong>%s dB / %s dB<br />' +
++					'<strong><%:Signal Attenuation (SATN)%>: </strong>%s dB / %s dB<br />' +
++					'<strong><%:Noise Margin (SNR)%>: </strong>%s dB / %s dB<br />' +
++					'<strong><%:Aggregate Transmit Power(ACTATP)%>: </strong>%s dB / %s dB<br />' +
++					'<strong><%:Forward Error Correction Seconds (FECS)%>: </strong>%s / %s<br />' +
++					'<strong><%:Errored seconds (ES)%>: </strong>%s / %s<br />' +
++					'<strong><%:Severely Errored Seconds (SES)%>: </strong>%s / %s<br />' +
++					'<strong><%:Loss of Signal Seconds (LOSS)%>: </strong>%s / %s<br />' +
++					'<strong><%:Unavailable Seconds (UAS)%>: </strong>%s / %s<br />' +
++					'<strong><%:Header Error Code Errors (HEC)%>: </strong>%s / %s<br />' +
++					'<strong><%:Non Pre-emtive CRC errors (CRC_P)%>: </strong>%s / %s<br />' +
++					'<strong><%:Pre-emtive CRC errors (CRCP_P)%>: </strong>%s / %s<br />' +
++					'<strong><%:Line Uptime%>: </strong>%s<br />' +
++					'<strong><%:ATU-C System Vendor ID%>: </strong>%s<br />' +
++					'<strong><%:Power Management Mode%>: </strong>%s<br />',
++						info.dsl.line_state, info.dsl.line_state_detail,
++						info.dsl.line_state_num,
++						info.dsl.line_mode_s,
++						info.dsl.annex_s,
++						info.dsl.profile_s,
++						info.dsl.data_rate_down_s, info.dsl.data_rate_up_s,
++						info.dsl.max_data_rate_down_s, info.dsl.max_data_rate_up_s,
++						info.dsl.latency_num_down, info.dsl.latency_num_up,
++						info.dsl.line_attenuation_down, info.dsl.line_attenuation_up,
++						info.dsl.signal_attenuation_down, info.dsl.signal_attenuation_up,
++						info.dsl.noise_margin_down, info.dsl.noise_margin_up,
++						info.dsl.actatp_down, info.dsl.actatp_up,
++						info.dsl.errors_fec_near, info.dsl.errors_fec_far,
++						info.dsl.errors_es_near, info.dsl.errors_es_far,
++						info.dsl.errors_ses_near, info.dsl.errors_ses_far,
++						info.dsl.errors_loss_near, info.dsl.errors_loss_far,
++						info.dsl.errors_uas_near, info.dsl.errors_uas_far,
++						info.dsl.errors_hec_near, info.dsl.errors_hec_far,
++						info.dsl.errors_crc_p_near, info.dsl.errors_crc_p_far,
++						info.dsl.errors_crcp_p_near, info.dsl.errors_crcp_p_far,
++						info.dsl.line_uptime_s,
++						info.dsl.atuc_vendor_id,
++						info.dsl.power_mode_s
++				);
++
++				dsl_s.innerHTML = String.format('<small>%s</small>', s);
++				dsl_i.innerHTML = String.format(
++					'<img src="<%=resource%>/icons/ethernet.png" />' +
++					'<br /><small>DSL</small>'
++				);
++			<% end %>
++
++			<% if has_dhcp then %>
++			var ls = document.getElementById('lease_status_table');
++			if (ls)
++			{
++				/* clear all rows */
++				while( ls.rows.length > 1 )
++					ls.rows[0].parentNode.deleteRow(1);
++
++				for( var i = 0; i < info.leases.length; i++ )
++				{
++					var timestr;
++
++					if (info.leases[i].expires === false)
++						timestr = '<em><%:unlimited%></em>';
++					else if (info.leases[i].expires <= 0)
++						timestr = '<em><%:expired%></em>';
++					else
++						timestr = String.format('%t', info.leases[i].expires);
++
++					var tr = ls.rows[0].parentNode.insertRow(-1);
++						tr.className = 'cbi-section-table-row cbi-rowstyle-' + ((i % 2) + 1);
++
++					tr.insertCell(-1).innerHTML = info.leases[i].hostname ? info.leases[i].hostname : '?';
++					tr.insertCell(-1).innerHTML = info.leases[i].ipaddr;
++					tr.insertCell(-1).innerHTML = info.leases[i].macaddr;
++					tr.insertCell(-1).innerHTML = timestr;
++				}
++
++				if( ls.rows.length == 1 )
++				{
++					var tr = ls.rows[0].parentNode.insertRow(-1);
++						tr.className = 'cbi-section-table-row';
++
++					var td = tr.insertCell(-1);
++						td.colSpan = 4;
++						td.innerHTML = '<em><br /><%:There are no active leases.%></em>';
++				}
++			}
++
++			var ls6 = document.getElementById('lease6_status_table');
++			if (ls6 && info.leases6)
++			{
++				ls6.parentNode.style.display = 'block';
++
++				/* clear all rows */
++				while( ls6.rows.length > 1 )
++					ls6.rows[0].parentNode.deleteRow(1);
++
++				for( var i = 0; i < info.leases6.length; i++ )
++				{
++					var timestr;
++
++					if (info.leases6[i].expires === false)
++						timestr = '<em><%:unlimited%></em>';
++					else if (info.leases6[i].expires <= 0)
++						timestr = '<em><%:expired%></em>';
++					else
++						timestr = String.format('%t', info.leases6[i].expires);
++
++					var tr = ls6.rows[0].parentNode.insertRow(-1);
++						tr.className = 'cbi-section-table-row cbi-rowstyle-' + ((i % 2) + 1);
++
++					var host = hosts[duid2mac(info.leases6[i].duid)];
++					if (!info.leases6[i].hostname)
++						tr.insertCell(-1).innerHTML =
++							(host && (host.name || host.ipv4 || host.ipv6))
++								? '<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space: nowrap">? (%h)</div>'.format(host.name || host.ipv4 || host.ipv6)
++								: '?';
++					else
++						tr.insertCell(-1).innerHTML =
++							(host && host.name && info.leases6[i].hostname != host.name)
++								? '<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space: nowrap">%h (%h)</div>'.format(info.leases6[i].hostname, host.name)
++								: info.leases6[i].hostname;
++
++					tr.insertCell(-1).innerHTML = info.leases6[i].ip6addr;
++					tr.insertCell(-1).innerHTML = info.leases6[i].duid;
++					tr.insertCell(-1).innerHTML = timestr;
++				}
++
++				if( ls6.rows.length == 1 )
++				{
++					var tr = ls6.rows[0].parentNode.insertRow(-1);
++						tr.className = 'cbi-section-table-row';
++
++					var td = tr.insertCell(-1);
++						td.colSpan = 4;
++						td.innerHTML = '<em><br /><%:There are no active leases.%></em>';
++				}
++			}
++			<% end %>
++
++			<% if has_wifi then %>
++			var assoclist = [ ];
++
++			var ws = document.getElementById('wifi_status_table');
++			if (ws)
++			{
++				var wsbody = ws.rows[0].parentNode;
++				while (ws.rows.length > 0)
++					wsbody.deleteRow(0);
++
++				for (var didx = 0; didx < info.wifinets.length; didx++)
++				{
++					var dev = info.wifinets[didx];
++
++					var tr = wsbody.insertRow(-1);
++					var td;
++
++					td = tr.insertCell(-1);
++					td.width     = "33%";
++					td.innerHTML = dev.name;
++					td.style.verticalAlign = "top";
++
++					td = tr.insertCell(-1);
++
++					var s = '';
++
++					for (var nidx = 0; nidx < dev.networks.length; nidx++)
++					{
++						var net = dev.networks[nidx];
++						var is_assoc = (net.bssid != '00:00:00:00:00:00' && net.channel && !net.disabled);
++
++						var icon;
++						if (!is_assoc)
++							icon = "<%=resource%>/icons/signal-none.png";
++						else if (net.quality == 0)
++							icon = "<%=resource%>/icons/signal-0.png";
++						else if (net.quality < 25)
++							icon = "<%=resource%>/icons/signal-0-25.png";
++						else if (net.quality < 50)
++							icon = "<%=resource%>/icons/signal-25-50.png";
++						else if (net.quality < 75)
++							icon = "<%=resource%>/icons/signal-50-75.png";
++						else
++							icon = "<%=resource%>/icons/signal-75-100.png";
++
++						s += String.format(
++							'<table><tr><td style="text-align:center; width:32px; padding:3px">' +
++								'<img src="%s" title="<%:Signal%>: %d dBm / <%:Noise%>: %d dBm" />' +
++								'<br /><small>%d%%</small>' +
++							'</td><td style="text-align:left; padding:3px"><small>' +
++								'<strong><%:SSID%>:</strong> <a href="%s">%h</a><br />' +
++								'<strong><%:Mode%>:</strong> %s<br />' +
++								'<strong><%:Channel%>:</strong> %d (%.3f <%:GHz%>)<br />' +
++								'<strong><%:Bitrate%>:</strong> %s <%:Mbit/s%><br />',
++								icon, net.signal, net.noise,
++								net.quality,
++								net.link, net.ssid || '?',
++								net.mode,
++								net.channel, net.frequency,
++								net.bitrate || '?'
++						);
++
++						if (is_assoc)
++						{
++							s += String.format(
++								'<strong><%:BSSID%>:</strong> %s<br />' +
++								'<strong><%:Encryption%>:</strong> %s',
++									net.bssid || '?',
++									net.encryption
++							);
++						}
++						else
++						{
++							s += '<em><%:Wireless is disabled or not associated%></em>';
++						}
++
++						s += '</small></td></tr></table>';
++
++						for (var bssid in net.assoclist)
++						{
++							var bss = net.assoclist[bssid];
++
++							bss.bssid  = bssid;
++							bss.link   = net.link;
++							bss.name   = net.name;
++							bss.ifname = net.ifname;
++							bss.radio  = dev.name;
++
++							assoclist.push(bss);
++						}
++					}
++
++					if (!s)
++						s = '<em><%:No information available%></em>';
++
++					td.innerHTML = s;
++				}
++			}
++
++			var ac = document.getElementById('wifi_assoc_table');
++			if (ac)
++			{
++				/* clear all rows */
++				while( ac.rows.length > 1 )
++					ac.rows[0].parentNode.deleteRow(1);
++
++				assoclist.sort(function(a, b) {
++					return (a.name == b.name)
++						? (a.bssid < b.bssid)
++						: (a.name  > b.name )
++					;
++				});
++
++				for( var i = 0; i < assoclist.length; i++ )
++				{
++					var tr = ac.rows[0].parentNode.insertRow(-1);
++						tr.className = 'cbi-section-table-row cbi-rowstyle-' + (1 + (i % 2));
++
++					var icon;
++					var q = (-1 * (assoclist[i].noise - assoclist[i].signal)) / 5;
++					if (q < 1)
++						icon = "<%=resource%>/icons/signal-0.png";
++					else if (q < 2)
++						icon = "<%=resource%>/icons/signal-0-25.png";
++					else if (q < 3)
++						icon = "<%=resource%>/icons/signal-25-50.png";
++					else if (q < 4)
++						icon = "<%=resource%>/icons/signal-50-75.png";
++					else
++						icon = "<%=resource%>/icons/signal-75-100.png";
++
++					tr.insertCell(-1).innerHTML = String.format(
++						'<span class="ifacebadge" title="%q"><img src="<%=resource%>/icons/wifi.png" /> %h</span>',
++						assoclist[i].radio, assoclist[i].ifname
++					);
++
++					tr.insertCell(-1).innerHTML = String.format(
++						'<a href="%s">%s</a>',
++							assoclist[i].link,
++							'%h'.format(assoclist[i].name).nobr()
++					);
++
++					tr.insertCell(-1).innerHTML = assoclist[i].bssid;
++
++					var host = hosts[assoclist[i].bssid];
++					if (host)
++						tr.insertCell(-1).innerHTML = String.format(
++							'<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis">%s</div>',
++							((host.name && (host.ipv4 || host.ipv6))
++								? '%h (%s)'.format(host.name, host.ipv4 || host.ipv6)
++								: '%h'.format(host.name || host.ipv4 || host.ipv6)).nobr()
++						);
++					else
++						tr.insertCell(-1).innerHTML = '?';
++
++					tr.insertCell(-1).innerHTML = String.format(
++						'<span class="ifacebadge" title="<%:Signal%>: %d <%:dBm%> / <%:Noise%>: %d <%:dBm%> / <%:SNR%>: %d"><img src="%s" /> %d / %d <%:dBm%></span>',
++						assoclist[i].signal, assoclist[i].noise, assoclist[i].signal - assoclist[i].noise,
++						icon,
++						assoclist[i].signal, assoclist[i].noise
++					);
++
++					tr.insertCell(-1).innerHTML = wifirate(assoclist[i], true).nobr() + '<br />' + wifirate(assoclist[i], false).nobr();
++				}
++
++				if (ac.rows.length == 1)
++				{
++					var tr = ac.rows[0].parentNode.insertRow(-1);
++						tr.className = 'cbi-section-table-row';
++
++					var td = tr.insertCell(-1);
++						td.colSpan = 7;
++						td.innerHTML = '<br /><em><%:No information available%></em>';
++				}
++			}
++			<% end %>
++
++			var e;
++
++			if (e = document.getElementById('localtime'))
++				e.innerHTML = info.localtime;
++
++			if (e = document.getElementById('uptime'))
++				e.innerHTML = String.format('%t', info.uptime);
++				
++			if (e = document.getElementById('userinfo'))
++				e.innerHTML = info.userinfo;
++				
++			if (e = document.getElementById('cpuinfo'))
++				e.innerHTML = info.cpuinfo;
++
++			if (e = document.getElementById('cpuusage'))
++				e.innerHTML = info.cpuusage;
++
++			if (e = document.getElementById('loadavg'))
++				e.innerHTML = String.format(
++					'%.02f, %.02f, %.02f',
++					info.loadavg[0] / 65535.0,
++					info.loadavg[1] / 65535.0,
++					info.loadavg[2] / 65535.0
++				);
++
++			if (e = document.getElementById('memtotal'))
++				e.innerHTML = progressbar(
++					Math.floor(((info.memory.free + info.memory.buffered) / 1048576) + (info.memcached / 1024)) + " <%:MB%>",
++					Math.floor(info.memory.total / 1048576) + " <%:MB%>"
++				);
++
++			if (e = document.getElementById('membuff'))
++				e.innerHTML = progressbar(
++					Math.floor(info.memory.buffered / 1048576) + " <%:MB%>",
++					Math.floor(info.memory.total / 1048576) + " <%:MB%>"
++				);
++
++			if (e = document.getElementById('swaptotal'))
++				e.innerHTML = progressbar(
++					Math.floor(info.swap.free / 1048576) + " <%:MB%>",
++					Math.floor(info.swap.total / 1048576) + " <%:MB%>"
++				);
++
++			if (e = document.getElementById('swapfree'))
++				e.innerHTML = progressbar(
++					Math.floor(info.swap.free / 1048576) + " <%:MB%>",
++					Math.floor(info.swap.total / 1048576) + " <%:MB%>"
++				);
++
++			if (e = document.getElementById('conns'))
++				e.innerHTML = progressbar(info.conncount, info.connmax);
++
++		}
++	);
++//]]></script>
++
++<h2 name="content"><%:Status%></h2>
++
++<fieldset class="cbi-section">
++	<legend><%:System%></legend>
++
++	<table width="100%" cellspacing="10">
++		<tr><td width="33%"><%:Hostname%></td><td><%=luci.sys.hostname() or "?"%></td></tr>
++		<tr><td width="33%"><%:Model%></td><td><%=pcdata(boardinfo.model or "?")%> <%=luci.sys.exec("cat /etc/bench.log") or " "%></td></tr>
++		<tr><td width="33%"><%:Architecture%></td><td><%=pcdata(boardinfo.system or "ARMv8 Processor")%> x <%=luci.sys.exec("cat /proc/cpuinfo | grep 'processor' | wc -l") or "1"%></td></tr>
++		<tr><td width="33%"><%:Firmware Version%></td><td>
++			<%=pcdata(ver.distname)%> <%=pcdata(ver.distversion)%> /
++			<%=pcdata(ver.luciname)%> (<%=pcdata(ver.luciversion)%>)
++		</td></tr>
++		<tr><td width="33%"><%:Kernel Version%></td><td><%=unameinfo.release or "?"%></td></tr>
++		<tr><td width="33%"><%:Local Time%></td><td id="localtime">-</td></tr>
++		<tr><td width="33%"><%:Uptime%></td><td id="uptime">-</td></tr>
++		<tr><td width="33%"><%:Load Average%></td><td id="loadavg">-</td></tr>
++		<tr><td width="33%"><%:CPU usage (%)%></td><td id="cpuusage">-</td></tr>
++	</table>
++</fieldset>
++
++<fieldset class="cbi-section">
++	<legend><%:Memory%></legend>
++
++	<table width="100%" cellspacing="10">
++		<tr><td width="33%"><%:Total Available%></td><td id="memtotal">-</td></tr>
++		<tr><td width="33%"><%:Buffered%></td><td id="membuff">-</td></tr>
++	</table>
++</fieldset>
++
++<% if swapinfo.total > 0 then %>
++<fieldset class="cbi-section">
++	<legend><%:Swap%></legend>
++
++	<table width="100%" cellspacing="10">
++		<tr><td width="33%"><%:Total Available%></td><td id="swaptotal">-</td></tr>
++		<tr><td width="33%"><%:Free%></td><td id="swapfree">-</td></tr>
++	</table>
++</fieldset>
++<% end %>
++
++<fieldset class="cbi-section">
++	<legend><%:Network%></legend>
++
++	<table width="100%" cellspacing="10">
++		<tr><td width="33%" style="vertical-align:top"><%:IPv4 WAN Status%></td><td>
++			<table><tr>
++				<td id="wan4_i" style="width:16px; text-align:center; padding:3px"><img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small></td>
++				<td id="wan4_s" style="vertical-align:middle; padding: 3px"><em><%:Collecting data...%></em></td>
++			</tr></table>
++		</td></tr>
++		<% if has_ipv6 then %>
++		<tr><td width="33%" style="vertical-align:top"><%:IPv6 WAN Status%></td><td>
++			<table><tr>
++				<td id="wan6_i" style="width:16px; text-align:center; padding:3px"><img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small></td>
++				<td id="wan6_s" style="vertical-align:middle; padding: 3px"><em><%:Collecting data...%></em></td>
++			</tr></table>
++		</td></tr>
++		<% end %>
++		<tr><td width="33%"><%:Online Users%></td><td id="userinfo">0</td></tr>
++		<tr><td width="33%"><%:Active Connections%></td><td id="conns">-</td></tr>
++	</table>
++</fieldset>
++
++<% if has_dhcp then %>
++<fieldset class="cbi-section">
++	<legend><%:DHCP Leases%></legend>
++
++	<table class="cbi-section-table" id="lease_status_table">
++		<tr class="cbi-section-table-titles">
++			<th class="cbi-section-table-cell"><%:Hostname%></th>
++			<th class="cbi-section-table-cell"><%:IPv4-Address%></th>
++			<th class="cbi-section-table-cell"><%:MAC-Address%></th>
++			<th class="cbi-section-table-cell"><%:Leasetime remaining%></th>
++		</tr>
++		<tr class="cbi-section-table-row">
++			<td colspan="4"><em><br /><%:Collecting data...%></em></td>
++		</tr>
++	</table>
++</fieldset>
++
++<% if has_ipv6 then %>
++<fieldset class="cbi-section" style="display:none">
++	<legend><%:DHCPv6 Leases%></legend>
++
++	<table class="cbi-section-table" id="lease6_status_table">
++		<tr class="cbi-section-table-titles">
++			<th class="cbi-section-table-cell"><%:Host%></th>
++			<th class="cbi-section-table-cell"><%:IPv6-Address%></th>
++			<th class="cbi-section-table-cell"><%:DUID%></th>
++			<th class="cbi-section-table-cell"><%:Leasetime remaining%></th>
++		</tr>
++		<tr class="cbi-section-table-row">
++			<td colspan="4"><em><br /><%:Collecting data...%></em></td>
++		</tr>
++	</table>
++</fieldset>
++<% end %>
++<% end %>
++
++<% if has_dsl then %>
++<fieldset class="cbi-section">
++       <legend><%:DSL%></legend>
++       <table width="100%" cellspacing="10">
++               <tr><td width="33%" style="vertical-align:top"><%:DSL Status%></td><td>
++                       <table><tr>
++                               <td id="dsl_i" style="width:16px; text-align:center; padding:3px"><img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small></td>
++                               <td id="dsl_s" style="vertical-align:middle; padding: 3px"><em><%:Collecting data...%></em></td>
++                       </tr></table>
++               </td></tr>
++       </table>
++</fieldset>
++<% end %>
++
++<% if has_wifi then %>
++<fieldset class="cbi-section">
++	<legend><%:Wireless%></legend>
++
++	<table id="wifi_status_table" width="100%" cellspacing="10">
++		<tr><td><em><%:Collecting data...%></em></td></tr>
++	</table>
++</fieldset>
++<% end %>
++
++<%+footer%>
+diff -uprN a/package/own/luci-this-h3h5/Makefile b/package/own/luci-this-h3h5/Makefile
+--- a/package/own/luci-this-h3h5/Makefile	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci-this-h3h5/Makefile	2022-05-02 12:21:55.614620605 +0800
+@@ -0,0 +1,37 @@
++#
++# Copyright (C) 2010-2011 OpenWrt.org
++#
++# This is free software, licensed under the GNU General Public License v2.
++# See /LICENSE for more information.
++#
++
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=luci-this-h3h5
++PKG_VERSION:=1
++PKG_RELEASE:=1
++
++include $(INCLUDE_DIR)/package.mk
++
++define Package/luci-this-h3h5
++  TITLE:=Display CPU temperature for h3h5
++  MAINTAINER:=javonca
++  DEPENDS:=@TARGET_sunxi
++  VARIANT:=arm
++endef
++
++define Package/luci-this-h3h5/description
++  Display CPU temperature for h3h5.
++endef
++
++define Build/Compile
++endef
++
++define Package/luci-this-h3h5/install
++	$(INSTALL_DIR) $(1)/etc
++	cp -pR ./files/* $(1)/etc
++	$(INSTALL_DIR) $(1)/etc/uci-defaults
++	$(INSTALL_BIN) ./uci-defaults/090-cover-default $(1)/etc/uci-defaults/090-cover-default
++endef
++
++$(eval $(call BuildPackage,luci-this-h3h5))
+diff -uprN a/package/own/luci-this-h3h5/uci-defaults/090-cover-default b/package/own/luci-this-h3h5/uci-defaults/090-cover-default
+--- a/package/own/luci-this-h3h5/uci-defaults/090-cover-default	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/luci-this-h3h5/uci-defaults/090-cover-default	2022-05-02 11:40:24.360594517 +0800
+@@ -0,0 +1,5 @@
++#!/bin/sh
++
++[ -f /etc/index.htm ] && mv /etc/index.htm /usr/lib/lua/luci/view/admin_status/index.htm
++
++exit 0
+diff -uprN a/package/own/xradio/Makefile b/package/own/xradio/Makefile
+--- a/package/own/xradio/Makefile	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/xradio/Makefile	2022-05-02 11:40:24.360594517 +0800
+@@ -0,0 +1,62 @@
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=xradio
++PKG_RELEASE=1
++
++PKG_LICENSE:=GPLv2
++PKG_LICENSE_FILES:=
++
++PKG_SOURCE_URL:=https://github.com/fifteenhex/xradio.git
++PKG_SOURCE_PROTO:=git
++PKG_SOURCE_DATE:=2021-03-06
++PKG_SOURCE_VERSION:=c909de15239a94e941ae5985991cdb68d8e9f5c9
++# PKG_SOURCE_DATE:=2020-03-21
++# PKG_SOURCE_VERSION:=8965ea55ddfd862ee76384913f82e6b69628cd27
++
++PKG_BUILD_PARALLEL:=1
++
++include $(INCLUDE_DIR)/kernel.mk
++include $(INCLUDE_DIR)/package.mk
++
++define Download/xr819
++  FILE:=xr819.tar.bz2
++  URL:=https://github.com/melsem/openwrt-lede_xradio-xr819_soc-audio/raw/master/firmware/
++  HASH:=bc9bae512267e04b6d00ffe18fe68a4181c9a5af35f765dfbabdeedd28c8f4f7
++endef
++$(eval $(call Download,xr819))
++
++define KernelPackage/xradio
++  SUBMENU:=Wireless Drivers Test-xr819
++  TITLE:=Xradio xr819 test wifi-drivers support
++  DEPENDS:=@TARGET_sunxi +kmod-mac80211 +wpad-mini
++  KCONFIG:= \
++	CONFIG_WLAN_VENDOR_XRADIO=m \
++	CONFIG_XRADIO_USE_EXTENSIONS=y
++  FILES:=$(PKG_BUILD_DIR)/xradio_wlan.ko
++  AUTOLOAD:=$(call AutoProbe,xradio_wlan)
++endef
++
++NOSTDINC_FLAGS = \
++	-I$(PKG_BUILD_DIR) \
++	-I$(STAGING_DIR)/usr/include/mac80211-backport/uapi \
++	-I$(STAGING_DIR)/usr/include/mac80211-backport \
++	-I$(STAGING_DIR)/usr/include/mac80211/uapi \
++	-I$(STAGING_DIR)/usr/include/mac80211 \
++	-include backport/autoconf.h \
++	-include backport/backport.h
++
++define Build/Compile
++	+$(MAKE) $(PKG_JOBS) -C "$(LINUX_DIR)" \
++		$(KERNEL_MAKE_FLAGS) \
++		$(PKG_MAKE_FLAGS) \
++		M="$(PKG_BUILD_DIR)" \
++		NOSTDINC_FLAGS="$(NOSTDINC_FLAGS)" \
++		modules
++endef
++
++define KernelPackage/xradio/install
++	$(INSTALL_DIR) $(1)/lib/firmware/xr819
++	$(TAR) -C $(1)/lib/firmware -xjf $(DL_DIR)/xr819.tar.bz2
++endef
++
++$(eval $(call KernelPackage,xradio))
+diff -uprN a/package/own/xradio/patches/001-xradio-disable-warnings.patch b/package/own/xradio/patches/001-xradio-disable-warnings.patch
+--- a/package/own/xradio/patches/001-xradio-disable-warnings.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/xradio/patches/001-xradio-disable-warnings.patch	2022-05-02 11:40:24.360594517 +0800
+@@ -0,0 +1,48 @@
++--- a/ap.c	2020-03-22 10:05:32.000000000 +0200
+++++ b/ap.c	2020-03-27 21:36:07.442219682 +0200
++@@ -1119,11 +1173,8 @@
++ 		.rate = 0xFF,
++ 	};
++ 
++-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 17))
++ 	frame.skb = ieee80211_nullfunc_get(priv->hw, priv->vif, false);
++-#else
++-	frame.skb = ieee80211_nullfunc_get(priv->hw, priv->vif);
++-#endif
+++
++ 	if (WARN_ON(!frame.skb))
++ 		return -ENOMEM;
++ 
++--- a/bh.c	2020-03-22 10:05:32.000000000 +0200
+++++ b/bh.c	2020-03-27 21:36:07.446219702 +0200
++@@ -776,7 +776,7 @@
++ 		} else if (!status) {
++ 			/* check if there is data waiting but we missed the interrupt*/
++ 			if (xradio_bh_rx_availlen(hw_priv) > 0) {
++-				dev_warn(hw_priv->pdev, "missed interrupt\n");
+++				//dev_warn(hw_priv->pdev, "missed interrupt\n");
++ 				if(xradio_bh_exchange(hw_priv) < 0){
++ 					break;
++ 				}
++--- a/rx.c	2020-03-22 10:05:32.000000000 +0200
+++++ b/rx.c	2020-03-27 21:36:07.466219801 +0200
++@@ -394,7 +394,7 @@
++ 		/* Double-check status with lock held */
++ 		if (entry->status == XRADIO_LINK_SOFT) {
++ 			skb_queue_tail(&entry->rx_queue, skb);
++-			dev_warn(priv->hw_priv->pdev, "***skb_queue_tail\n");
+++			//dev_warn(priv->hw_priv->pdev, "***skb_queue_tail\n");
++ 		} else
++ 			ieee80211_rx_irqsafe(priv->hw, skb);
++ 		spin_unlock_bh(&priv->ps_state_lock);
++--- a/main.c
+++++ b/main.c
++@@ -161,7 +174,9 @@
++ 	/* Intentionally not offloaded:					*/
++ 	/*.channel_switch	 = xradio_channel_switch,		*/
++ 	.remain_on_channel = xradio_remain_on_channel,
+++#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
++ 	.cancel_remain_on_channel = xradio_cancel_remain_on_channel,
+++#endif
++ };
++ 
+diff -uprN a/package/own/xradio/patches/002-Slightly-improved-latency-and-performance-of-RX.patch b/package/own/xradio/patches/002-Slightly-improved-latency-and-performance-of-RX.patch
+--- a/package/own/xradio/patches/002-Slightly-improved-latency-and-performance-of-RX.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/xradio/patches/002-Slightly-improved-latency-and-performance-of-RX.patch	2022-05-02 11:40:24.360594517 +0800
+@@ -0,0 +1,82 @@
++Slightly improved latency and performance of RX packets
++
++Dymanically decrease the sleep time when waiting for interrupts
++from the radio, to reduce latency during active communication.
++This helps, because we are missing some interrupts.
++
++Print an error when xradio,xr819 is not found in DTS, which
++results in running without any interrupts.
++
++Reduce the number of xradio_bh_rx_availlen() calls, because when
++called too often we are getting an error:
++sunxi-mmc 1c10000.mmc: data error, sending stop command
++Caused by a timeout while communicating with the radio, to query
++how much data is available to read if any. The timeout is likely
++a hardware issue with Orange Pi Zero and other similar boards.
++
++Signed-off-by: Georgi Valkov <gvalkov@abv.bg>
++
++--- a/bh.c
+++++ b/bh.c
++@@ -565,7 +565,8 @@
++ 		goto out;
++ 	}
++ 
++-	ret = 1;
+++	/* if *nextlen is 0, there are no more packets to receive */
+++	ret = 1 && *nextlen;
++ 
++ out:
++ 	/* Reclaim the SKB buffer */
++@@ -753,13 +754,16 @@
++ 	long status;
++ 
++ 	for (;;) {
++-		timeout = HZ / 30;
+++		/* if we got awaken by interrupt last time, there is a good chance
+++		* to receive more data soon. Use the shortest sleep time in case
+++		* we miss an interrupt */
+++		timeout = wake ? 1 : HZ / 30;
++ 
++ 		// wait for something to happen or a timeout
++ 		status = wait_event_interruptible_timeout(hw_priv->bh_wq, ( {
++-					wake = atomic_xchg(&hw_priv->bh_tx, 0);
++ 					term = kthread_should_stop();
++ 					suspend = atomic_read(&hw_priv->bh_suspend);
+++					wake = atomic_xchg(&hw_priv->bh_tx, 0);
++ 					(wake || term || suspend);}), timeout);
++ 
++ 		if (wake) {
++@@ -774,8 +778,17 @@
++ 					hw_priv->bh_error, status);
++ 			break;
++ 		} else if (!status) {
+++			/* wait timed out
+++			* check if a late interrupt arrived in the last moment */
+++			if (atomic_xchg(&hw_priv->bh_tx, 0))
+++			{
+++				wake = 1;
+++				if(xradio_bh_exchange(hw_priv) < 0){
+++				break;
+++				}
+++			}
++ 			/* check if there is data waiting but we missed the interrupt*/
++-			if (xradio_bh_rx_availlen(hw_priv) > 0) {
+++			else if (xradio_bh_rx_availlen(hw_priv) > 0) {
++ 				//dev_warn(hw_priv->pdev, "missed interrupt\n");
++ 				if(xradio_bh_exchange(hw_priv) < 0){
++ 					break;
++--- a/sdio.c
+++++ b/sdio.c
++@@ -136,8 +136,10 @@
++ 	int irq;
++ 
++ 	of_id = of_match_node(xradio_sdio_of_match_table, np);
++-	if (!of_id)
+++	if (!of_id) {
+++		dev_err(dev, "SDIO: xradio,xr819 not found in DTS\n");
++ 		return -ENODEV;
+++	}
++ 
++ 	//pdev_data->family = of_id->data;
++ 

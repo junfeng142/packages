@@ -1,0 +1,358 @@
+diff -uprN a/feeds/packages/lang/golang/golang/Makefile b/feeds/packages/lang/golang/golang/Makefile
+--- a/feeds/packages/lang/golang/golang/Makefile	2022-07-31 13:05:55.603402000 +0800
++++ b/feeds/packages/lang/golang/golang/Makefile	2022-05-02 11:40:24.356594736 +0800
+@@ -7,7 +7,7 @@
+ 
+ include $(TOPDIR)/rules.mk
+ 
+-GO_VERSION_MAJOR_MINOR:=1.17
++GO_VERSION_MAJOR_MINOR:=1.18
+ GO_VERSION_PATCH:=1
+ 
+ PKG_NAME:=golang
+@@ -20,7 +20,7 @@ GO_SOURCE_URLS:=https://dl.google.com/go
+ 
+ PKG_SOURCE:=go$(PKG_VERSION).src.tar.gz
+ PKG_SOURCE_URL:=$(GO_SOURCE_URLS)
+-PKG_HASH:=49dc08339770acd5613312db8c141eaf61779995577b89d93b541ef83067e5b1
++PKG_HASH:=efd43e0f1402e083b73a03d444b7b6576bb4c539ac46208b63a916b69aca4088
+ 
+ PKG_MAINTAINER:=Jeffery To <jeffery.to@gmail.com>
+ PKG_LICENSE:=BSD-3-Clause
+@@ -106,7 +106,7 @@ endif
+ define Package/golang/Default
+ $(call GoPackage/GoSubMenu)
+   TITLE:=Go programming language
+-  URL:=https://golang.org/
++  URL:=https://go.dev/
+   DEPENDS:=$(GO_ARCH_DEPENDS)
+ endef
+ 
+@@ -262,11 +262,14 @@ $(eval $(call GoCompiler/AddProfile,Pack
+ 
+ PKG_GO_ZBOOTSTRAP_MODS:= \
+ 	s/defaultGO386 = `[^`]*`/defaultGO386 = `$(or $(GO_386),sse2)`/; \
++	s/defaultGOAMD64 = `[^`]*`/defaultGOAMD64 = `$(or $(GO_AMD64),v1)`/; \
+ 	s/defaultGOARM = `[^`]*`/defaultGOARM = `$(or $(GO_ARM),5)`/; \
+ 	s/defaultGOMIPS = `[^`]*`/defaultGOMIPS = `$(or $(GO_MIPS),hardfloat)`/; \
+ 	s/defaultGOMIPS64 = `[^`]*`/defaultGOMIPS64 = `$(or $(GO_MIPS64),hardfloat)`/; \
+-	s/defaultGOPPC64 = `[^`]*`/defaultGOPPC64 = `power8`/;
++	s/defaultGOPPC64 = `[^`]*`/defaultGOPPC64 = `$(or $(GO_PPC64),power8)`/;
++
+ PKG_GO_ZBOOTSTRAP_PATH:=$(PKG_BUILD_DIR)/src/internal/buildcfg/zbootstrap.go
++
+ PKG_GO_VARS= \
+ 	GOCACHE="$(GO_BUILD_CACHE_DIR)" \
+ 	GOENV=off \
+@@ -275,15 +278,19 @@ PKG_GO_VARS= \
+ 	CXX=g++ \
+ 	PKG_CONFIG=pkg-config \
+ 	PATH="$(HOST_GO_ROOT)/openwrt:$$$$PATH"
++
+ PKG_GO_GCFLAGS= \
+ 	$(if $(GO_PKG_ENABLE_SPECTRE),-spectre all)
++
+ PKG_GO_ASMFLAGS= \
+ 	$(if $(GO_PKG_ENABLE_SPECTRE),-spectre all)
++
+ PKG_GO_LDFLAGS= \
+ 	-buildid '$(SOURCE_DATE_EPOCH)' \
+ 	-linkmode external \
+ 	-extldflags '$(patsubst -z%,-Wl$(comma)-z$(comma)%,$(TARGET_LDFLAGS))' \
+ 	$(if $(CONFIG_NO_STRIP)$(CONFIG_DEBUG),,-s -w)
++
+ # setting -trimpath is not necessary here because the paths inside the
+ # compiler binary are relative to GOROOT_FINAL (PKG_GO_ROOT), which is
+ # static / not dependent on the build environment
+@@ -292,16 +299,21 @@ PKG_GO_INSTALL_ARGS= \
+ 	$(if $(PKG_GO_GCFLAGS),-gcflags "all=$(PKG_GO_GCFLAGS)") \
+ 	$(if $(PKG_GO_ASMFLAGS),-asmflags "all=$(PKG_GO_ASMFLAGS)") \
+ 	$(if $(filter $(GO_PKG_ENABLE_PIE),1),-buildmode pie)
++
+ define Build/Compile
+ 	mkdir -p "$(GO_BUILD_CACHE_DIR)"
++
+ 	@echo "Building target Go first stage"
++
+ 	$(call GoCompiler/Package/Make, \
+ 		GOROOT_BOOTSTRAP="$(HOST_GO_ROOT)" \
+ 		GO_GCC_HELPER_CC="$(HOSTCC)" \
+ 		GO_GCC_HELPER_CXX="$(HOSTCXX)" \
+ 		$(PKG_GO_VARS) \
+ 	)
++
+ 	$(SED) '$(PKG_GO_ZBOOTSTRAP_MODS)' "$(PKG_GO_ZBOOTSTRAP_PATH)"
++
+ 	( \
+ 		if echo 'int main() { return 0; }' | $(TARGET_CC) -o $(PKG_BUILD_DIR)/test-ldso -x c - > /dev/null 2>&1; then \
+ 			LDSO=$$$$( \
+@@ -311,7 +323,9 @@ define Build/Compile
+ 		fi ; \
+ 		$(SED) "s,defaultGO_LDSO = \`[^\`]*\`,defaultGO_LDSO = \`$$$$LDSO\`," "$(PKG_GO_ZBOOTSTRAP_PATH)" ; \
+ 	)
++
+ 	@echo "Building target Go second stage"
++
+ 	( \
+ 		cd "$(PKG_BUILD_DIR)/bin" ; \
+ 		export $(GO_PKG_TARGET_VARS) ; \
+@@ -326,16 +340,20 @@ define Build/Compile
+ 		exit "$$$$retval" ; \
+ 	)
+ endef
++
+ define Package/golang/install
+ 	$(call GoCompiler/Package/Install/Bin,$(1)$(PKG_GO_PREFIX))
+ 	$(call GoCompiler/Package/Install/BinLinks,$(1)$(PKG_GO_PREFIX))
+ endef
++
+ define Package/golang-doc/install
+ 	$(call GoCompiler/Package/Install/Doc,$(1)$(PKG_GO_PREFIX))
+ endef
++
+ define Package/golang-src/install
+ 	$(call GoCompiler/Package/Install/Src,$(1)$(PKG_GO_PREFIX))
+ endef
++
+ # src/debug contains ELF executables as test data
+ # and they reference these libraries
+ # we need to call this in Package/$(1)/extra_provides
+@@ -343,6 +361,8 @@ endef
+ define Package/golang-src/extra_provides
+ 	echo 'libc.so.6'
+ endef
++
++
+ $(eval $(call HostBuild))
+ $(eval $(call BuildPackage,golang))
+ $(eval $(call BuildPackage,golang-doc))
+diff -uprN a/feeds/packages/lang/golang/golang/patches/001-cmd-link-use-gold-on-ARM-ARM64-only-if-gold-is-available.patch b/feeds/packages/lang/golang/golang/patches/001-cmd-link-use-gold-on-ARM-ARM64-only-if-gold-is-available.patch
+--- a/feeds/packages/lang/golang/golang/patches/001-cmd-link-use-gold-on-ARM-ARM64-only-if-gold-is-available.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/feeds/packages/lang/golang/golang/patches/001-cmd-link-use-gold-on-ARM-ARM64-only-if-gold-is-available.patch	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,48 @@
++From 5ccf9f47bf4f5ba53e0ab7338a7fd4626714cfb2 Mon Sep 17 00:00:00 2001
++From: Jeffery To <jeffery.to@gmail.com>
++Date: Tue, 23 Nov 2021 15:05:37 +0800
++Subject: [PATCH] cmd/link: use gold on ARM/ARM64 only if gold is available
++
++COPY relocation handling on ARM/ARM64 has been fixed in recent versions
++of the GNU linker. This switches to gold only if gold is available.
++
++Fixes #22040.
++---
++ src/cmd/link/internal/ld/lib.go | 19 +++++++------------
++ 1 file changed, 7 insertions(+), 12 deletions(-)
++
++--- a/src/cmd/link/internal/ld/lib.go
+++++ b/src/cmd/link/internal/ld/lib.go
++@@ -1393,25 +1393,20 @@ func (ctxt *Link) hostlink() {
++ 		}
++ 
++ 		if ctxt.Arch.InFamily(sys.ARM, sys.ARM64) && buildcfg.GOOS == "linux" {
++-			// On ARM, the GNU linker will generate COPY relocations
++-			// even with -znocopyreloc set.
+++			// On ARM, older versions of the GNU linker will generate
+++			// COPY relocations even with -znocopyreloc set.
++ 			// https://sourceware.org/bugzilla/show_bug.cgi?id=19962
++ 			//
++-			// On ARM64, the GNU linker will fail instead of
++-			// generating COPY relocations.
+++			// On ARM64, older versions of the GNU linker will fail
+++			// instead of generating COPY relocations.
++ 			//
++-			// In both cases, switch to gold.
++-			altLinker = "gold"
++-
++-			// If gold is not installed, gcc will silently switch
++-			// back to ld.bfd. So we parse the version information
++-			// and provide a useful error if gold is missing.
+++			// In both cases, switch to gold if gold is available.
++ 			name, args := flagExtld[0], flagExtld[1:]
++ 			args = append(args, "-fuse-ld=gold", "-Wl,--version")
++ 			cmd := exec.Command(name, args...)
++ 			if out, err := cmd.CombinedOutput(); err == nil {
++-				if !bytes.Contains(out, []byte("GNU gold")) {
++-					log.Fatalf("ARM external linker must be gold (issue #15696), but is not: %s", out)
+++				if bytes.Contains(out, []byte("GNU gold")) {
+++					altLinker = "gold"
++ 				}
++ 			}
++ 		}
+diff -uprN a/feeds/packages/lang/golang/golang-build.sh b/feeds/packages/lang/golang/golang-build.sh
+--- a/feeds/packages/lang/golang/golang-build.sh	2022-07-31 13:05:55.603402000 +0800
++++ b/feeds/packages/lang/golang/golang-build.sh	2022-05-02 11:40:24.356594736 +0800
+@@ -56,7 +56,7 @@ configure() {
+ 	if [ "$GO_INSTALL_ALL" != 1 ]; then
+ 		code="$(printf '%s\n' "$files" | grep '\.\(c\|cc\|cpp\|go\|h\|hh\|hpp\|proto\|s\)$')"
+ 		testdata="$(printf '%s\n' "$files" | grep '/testdata/')"
+-		gomod="$(printf '%s\n' "$files" | grep '/go\.\(mod\|sum\)$')"
++		gomod="$(printf '%s\n' "$files" | grep '/go\.\(mod\|sum\|work\)$')"
+ 
+ 		for pattern in $GO_INSTALL_EXTRA; do
+ 			extra="$(printf '%s\n' "$extra"; printf '%s\n' "$files" | grep -e "$pattern")"
+diff -uprN a/feeds/packages/lang/golang/golang-host-build.mk b/feeds/packages/lang/golang/golang-host-build.mk
+--- a/feeds/packages/lang/golang/golang-host-build.mk	2022-07-31 13:05:55.603402000 +0800
++++ b/feeds/packages/lang/golang/golang-host-build.mk	2022-05-02 11:40:24.356594736 +0800
+@@ -107,10 +107,10 @@ GO_HOST_CUSTOM_LDFLAGS= \
+ GO_HOST_INSTALL_ARGS= \
+ 	-v \
+ 	-ldflags "all=$(GO_HOST_DEFAULT_LDFLAGS)" \
+-	$(if $(filter $(GO_HOST_ENABLE_PIE),1),-buildmode pie) \
+-	$(if $(GO_HOST_GCFLAGS),-gcflags "$(GO_HOST_GCFLAGS)") \
+-	$(if $(GO_HOST_CUSTOM_LDFLAGS),-ldflags "$(GO_HOST_CUSTOM_LDFLAGS) $(GO_HOST_DEFAULT_LDFLAGS)") \
+-	$(if $(GO_HOST_TAGS),-tags "$(GO_HOST_TAGS)")
++	$(if $(GO_HOST_ENABLE_PIE),-buildmode pie) \
++	$(if $(strip $(GO_HOST_GCFLAGS)),-gcflags "$(GO_HOST_GCFLAGS)") \
++	$(if $(strip $(GO_HOST_CUSTOM_LDFLAGS)),-ldflags "$(GO_HOST_CUSTOM_LDFLAGS) $(GO_HOST_DEFAULT_LDFLAGS)") \
++	$(if $(strip $(GO_HOST_TAGS)),-tags "$(GO_HOST_TAGS)")
+ 
+ define GoHost/Host/Configure
+ 	$(GO_GENERAL_BUILD_CONFIG_VARS) \
+diff -uprN a/feeds/packages/lang/golang/golang-package.mk b/feeds/packages/lang/golang/golang-package.mk
+--- a/feeds/packages/lang/golang/golang-package.mk	2022-07-31 13:05:55.603402000 +0800
++++ b/feeds/packages/lang/golang/golang-package.mk	2022-05-02 11:40:24.356594736 +0800
+@@ -32,7 +32,7 @@ include $(GO_INCLUDE_DIR)/golang-values.
+ #
+ #   * Files in any 'testdata' directory
+ #
+-#   * go.mod and go.sum, in any directory
++#   * go.mod, go.sum and go.work, in any directory
+ #
+ #   e.g. GO_PKG_INSTALL_EXTRA:=example.toml marshal_test.toml
+ #
+@@ -198,9 +198,11 @@ GO_PKG_TARGET_VARS= \
+ 	GOOS="$(GO_OS)" \
+ 	GOARCH="$(GO_ARCH)" \
+ 	GO386="$(GO_386)" \
++	GOAMD64="$(GO_AMD64)" \
+ 	GOARM="$(GO_ARM)" \
+ 	GOMIPS="$(GO_MIPS)" \
+ 	GOMIPS64="$(GO_MIPS64)" \
++	GOPPC64="$(GO_PPC64)" \
+ 	CGO_ENABLED=1 \
+ 	CC="$(TARGET_CC)" \
+ 	CXX="$(TARGET_CXX)" \
+@@ -236,17 +238,18 @@ GO_PKG_CUSTOM_LDFLAGS= \
+ 
+ GO_PKG_INSTALL_ARGS= \
+ 	-v \
++	-buildvcs=false \
+ 	-trimpath \
+ 	-ldflags "all=$(GO_PKG_DEFAULT_LDFLAGS)" \
+-	$(if $(GO_PKG_DEFAULT_GCFLAGS),-gcflags "all=$(GO_PKG_DEFAULT_GCFLAGS)") \
+-	$(if $(GO_PKG_DEFAULT_ASMFLAGS),-asmflags "all=$(GO_PKG_DEFAULT_ASMFLAGS)") \
+-	$(if $(filter $(GO_PKG_ENABLE_PIE),1),-buildmode pie) \
++	$(if $(strip $(GO_PKG_DEFAULT_GCFLAGS)),-gcflags "all=$(GO_PKG_DEFAULT_GCFLAGS)") \
++	$(if $(strip $(GO_PKG_DEFAULT_ASMFLAGS)),-asmflags "all=$(GO_PKG_DEFAULT_ASMFLAGS)") \
++	$(if $(GO_PKG_ENABLE_PIE),-buildmode pie) \
+ 	$(if $(filter $(GO_ARCH),arm),-installsuffix "v$(GO_ARM)") \
+ 	$(if $(filter $(GO_ARCH),mips mipsle),-installsuffix "$(GO_MIPS)") \
+ 	$(if $(filter $(GO_ARCH),mips64 mips64le),-installsuffix "$(GO_MIPS64)") \
+-	$(if $(GO_PKG_GCFLAGS),-gcflags "$(GO_PKG_GCFLAGS) $(GO_PKG_DEFAULT_GCFLAGS)") \
+-	$(if $(GO_PKG_CUSTOM_LDFLAGS),-ldflags "$(GO_PKG_CUSTOM_LDFLAGS) $(GO_PKG_DEFAULT_LDFLAGS)") \
+-	$(if $(GO_PKG_TAGS),-tags "$(GO_PKG_TAGS)")
++	$(if $(strip $(GO_PKG_GCFLAGS)),-gcflags "$(GO_PKG_GCFLAGS) $(GO_PKG_DEFAULT_GCFLAGS)") \
++	$(if $(strip $(GO_PKG_CUSTOM_LDFLAGS)),-ldflags "$(GO_PKG_CUSTOM_LDFLAGS) $(GO_PKG_DEFAULT_LDFLAGS)") \
++	$(if $(strip $(GO_PKG_TAGS)),-tags "$(GO_PKG_TAGS)")
+ 
+ define GoPackage/Build/Configure
+ 	$(GO_GENERAL_BUILD_CONFIG_VARS) \
+diff -uprN a/feeds/packages/lang/golang/golang-values.mk b/feeds/packages/lang/golang/golang-values.mk
+--- a/feeds/packages/lang/golang/golang-values.mk	2022-07-31 13:05:55.603402000 +0800
++++ b/feeds/packages/lang/golang/golang-values.mk	2022-05-02 11:40:24.356594736 +0800
+@@ -29,7 +29,8 @@ unexport \
+   GOOS \
+   GOPATH \
+   GOROOT \
+-  GOTMPDIR
++  GOTMPDIR \
++  GOWORK
+ # Unmodified:
+ #   GOINSECURE
+ #   GOPRIVATE
+@@ -58,8 +59,10 @@ unexport \
+ unexport \
+   GOARM \
+   GO386 \
++  GOAMD64 \
+   GOMIPS \
+   GOMIPS64 \
++  GOPPC64 \
+   GOWASM
+ 
+ # Special-purpose environment variables:
+@@ -86,13 +89,12 @@ unexport \
+ #   CC_FOR_${GOOS}_${GOARCH}
+ #   CXX_FOR_${GOOS}_${GOARCH}
+ 
+-# From https://golang.org/doc/install/source#environment
++# From https://go.dev/doc/install/source#environment
+ unexport \
+   GOHOSTOS \
+-  GOHOSTARCH \
+-  GOPPC64
++  GOHOSTARCH
+ 
+-# From https://golang.org/src/make.bash
++# From https://go.dev/src/make.bash
+ unexport \
+   GO_GCFLAGS \
+   GO_LDFLAGS \
+@@ -101,16 +103,16 @@ unexport \
+   GOBUILDTIMELOGFILE \
+   GOROOT_BOOTSTRAP
+ 
+-# From https://golang.org/doc/go1.9#parallel-compile
++# From https://go.dev/doc/go1.9#parallel-compile
+ unexport \
+   GO19CONCURRENTCOMPILATION
+ 
+-# From https://golang.org/src/cmd/dist/build.go
++# From https://go.dev/src/cmd/dist/build.go
+ unexport \
+   BOOT_GO_GCFLAGS \
+   BOOT_GO_LDFLAGS
+ 
+-# From https://golang.org/src/cmd/dist/buildtool.go
++# From https://go.dev/src/cmd/dist/buildtool.go
+ unexport \
+   GOBOOTSTRAP_TOOLEXEC
+ 
+@@ -152,6 +154,9 @@ ifeq ($(GO_ARCH),386)
+   # -fno-plt: causes "unexpected GOT reloc for non-dynamic symbol" errors
+   GO_CFLAGS_TO_REMOVE:=-fno-plt
+ 
++else ifeq ($(GO_ARCH),amd64)
++  GO_AMD64:=v1
++
+ else ifeq ($(GO_ARCH),arm)
+   GO_TARGET_FPU:=$(word 2,$(subst +,$(space),$(call qstrip,$(CONFIG_CPU_TYPE))))
+ 
+@@ -183,6 +188,9 @@ else ifneq ($(filter $(GO_ARCH),mips64 m
+     GO_MIPS64:=softfloat
+   endif
+ 
++else ifeq ($(GO_ARCH),ppc64)
++  GO_PPC64:=power8
++
+ endif
+ 
+ 
+@@ -193,7 +201,7 @@ GO_ARCH_DEPENDS:=@(aarch64||arm||i386||i
+ 
+ # ASLR/PIE
+ 
+-# From https://golang.org/src/cmd/internal/sys/supported.go
++# From https://go.dev/src/cmd/internal/sys/supported.go
+ GO_PIE_SUPPORTED_OS_ARCH:= \
+   android_386  android_amd64  android_arm  android_arm64 \
+   linux_386    linux_amd64    linux_arm    linux_arm64 \
+@@ -209,7 +217,7 @@ GO_PIE_SUPPORTED_OS_ARCH:= \
+   \
+   linux_ppc64le linux_riscv64 linux_s390x
+ 
+-# From https://golang.org/src/cmd/go/internal/work/init.go
++# From https://go.dev/src/cmd/go/internal/work/init.go
+ go_pie_install_suffix=$(if $(filter $(1),aix_ppc64 windows_386 windows_amd64 windows_arm),,shared)
+ 
+ ifneq ($(filter $(GO_HOST_OS_ARCH),$(GO_PIE_SUPPORTED_OS_ARCH)),)

@@ -1,0 +1,785 @@
+diff -uprN a/package/own/containerd/Makefile b/package/own/containerd/Makefile
+--- a/package/own/containerd/Makefile	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/containerd/Makefile	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,61 @@
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=containerd
++PKG_VERSION:=1.5.11
++PKG_RELEASE:=1
++PKG_LICENSE:=Apache-2.0
++PKG_LICENSE_FILES:=LICENSE
++
++PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
++PKG_SOURCE_URL:=https://codeload.github.com/containerd/containerd/tar.gz/v${PKG_VERSION}?
++PKG_HASH:=02b79d5e2b07b5e64cd28f1fe84395ee11eef95fc49fd923a9ab93022b148be6
++PKG_SOURCE_VERSION:=3df54a852345ae127d1fa3092b95168e4a88e2f8
++
++PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
++
++PKG_BUILD_DEPENDS:=golang/host
++PKG_BUILD_PARALLEL:=1
++PKG_INSTALL:=1
++PKG_USE_MIPS16:=0
++
++GO_PKG:=github.com/containerd/containerd
++
++include $(INCLUDE_DIR)/package.mk
++include $(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
++
++define Package/containerd
++  SECTION:=utils
++  CATEGORY:=Utilities
++  TITLE:=containerd container runtime
++  URL:=https://containerd.io/
++  DEPENDS:=$(GO_ARCH_DEPENDS) +btrfs-progs +runc
++  MENU:=1
++endef
++
++define Package/containerd/description
++An industry-standard container runtime with an emphasis on simplicity, robustness and portability
++endef
++
++GO_PKG_BUILD_VARS += GO111MODULE=auto
++GO_PKG_INSTALL_ALL:=1
++MAKE_PATH:=$(GO_PKG_WORK_DIR_NAME)/build/src/$(GO_PKG)
++MAKE_VARS += $(GO_PKG_VARS)
++MAKE_FLAGS += \
++	VERSION=$(PKG_VERSION) \
++	REVISION=$(PKG_SOURCE_VERSION)
++
++ifeq ($(CONFIG_SELINUX),y)
++MAKE_FLAGS += BUILDTAGS='selinux'
++else
++MAKE_FLAGS += BUILDTAGS=''
++endif
++
++# Reset golang-package.mk overrides so we can use the Makefile
++Build/Compile=$(call Build/Compile/Default)
++
++define Package/containerd/install
++	$(INSTALL_DIR) $(1)/usr/bin/
++	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/bin/{ctr,containerd,containerd-stress,containerd-shim,containerd-shim-runc-v1,containerd-shim-runc-v2} $(1)/usr/bin/
++endef
++
++$(eval $(call BuildPackage,containerd))
+diff -uprN a/package/own/docker/Makefile b/package/own/docker/Makefile
+--- a/package/own/docker/Makefile	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/docker/Makefile	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,71 @@
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=docker
++PKG_VERSION:=20.10.14
++PKG_RELEASE:=$(AUTORELEASE)
++PKG_LICENSE:=Apache-2.0
++PKG_LICENSE_FILES:=LICENSE
++
++PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
++PKG_GIT_URL:=github.com/docker/cli
++PKG_GIT_REF:=v$(PKG_VERSION)
++PKG_SOURCE_URL:=https://codeload.$(PKG_GIT_URL)/tar.gz/$(PKG_GIT_REF)?
++PKG_HASH:=bda289b27b18675d6a6ff07568453768fe68c16c27b5e52724e46896d5464a55
++PKG_GIT_SHORT_COMMIT:=a224086 # SHA1 used within the docker executables
++
++PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
++
++PKG_BUILD_DEPENDS:=golang/host
++PKG_BUILD_PARALLEL:=1
++PKG_USE_MIPS16:=0
++
++GO_PKG:=$(PKG_GIT_URL)
++
++include $(INCLUDE_DIR)/package.mk
++include $(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
++
++define Package/docker
++  SECTION:=utils
++  CATEGORY:=Utilities
++  TITLE:=Docker Community Edition CLI
++  URL:=https://www.docker.com/
++  DEPENDS:=$(GO_ARCH_DEPENDS)
++endef
++
++define Package/docker/description
++The CLI used in the Docker CE and Docker EE products.
++endef
++
++GO_PKG_BUILD_VARS += GO111MODULE=auto
++TAR_OPTIONS:=--strip-components 1 $(TAR_OPTIONS)
++TAR_CMD=$(HOST_TAR) -C $(1) $(TAR_OPTIONS)
++
++define Build/Prepare
++	$(Build/Prepare/Default)
++
++	# Verify PKG_GIT_SHORT_COMMIT
++	( \
++		EXPECTED_PKG_GIT_SHORT_COMMIT=$$$$( $(CURDIR)/../dockerd/git-short-commit.sh '$(PKG_GIT_URL)' '$(PKG_GIT_REF)' '$(TMP_DIR)/git-short-commit/$(PKG_NAME)-$(PKG_VERSION)' ); \
++		if [ "$$$${EXPECTED_PKG_GIT_SHORT_COMMIT}" != "$(strip $(PKG_GIT_SHORT_COMMIT))" ]; then \
++			echo "ERROR: Expected 'PKG_GIT_SHORT_COMMIT:=$$$${EXPECTED_PKG_GIT_SHORT_COMMIT}', found 'PKG_GIT_SHORT_COMMIT:=$(strip $(PKG_GIT_SHORT_COMMIT))'"; \
++			exit 1; \
++		fi \
++	)
++endef
++
++define Build/Compile
++	( \
++		cd $(PKG_BUILD_DIR); \
++		$(GO_PKG_VARS) \
++		GITCOMMIT=$(PKG_GIT_SHORT_COMMIT) \
++		VERSION=$(PKG_VERSION) \
++		./scripts/build/binary; \
++	)
++endef
++
++define Package/docker/install
++	$(INSTALL_DIR) $(1)/usr/bin/
++	$(INSTALL_BIN) $(PKG_BUILD_DIR)/build/docker $(1)/usr/bin/
++endef
++
++$(eval $(call BuildPackage,docker))
+diff -uprN a/package/own/dockerd/Config.in b/package/own/dockerd/Config.in
+--- a/package/own/dockerd/Config.in	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/dockerd/Config.in	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,74 @@
++# These options are mostly specified by https://github.com/moby/moby/blob/master/contrib/check-config.sh
++
++config DOCKER_CGROUP_OPTIONS
++	bool "Enable available kernel support for CGroupsV1"
++	default y
++	depends on PACKAGE_dockerd
++	select KERNEL_CGROUP_DEVICE
++	select KERNEL_CGROUP_FREEZER
++	select KERNEL_NET_CLS_CGROUP
++	select KERNEL_CGROUP_NET_PRIO
++	select PACKAGE_cgroupfs-mount
++	help
++		Selects kernel options to enable CGroups V1.
++
++config DOCKER_OPTIONAL_FEATURES
++	bool "Enable optional kernel support for Docker"
++	default n
++	depends on PACKAGE_dockerd
++	select KERNEL_MEMCG_SWAP_ENABLED
++	select KERNEL_CFQ_GROUP_IOSCHED
++	select KERNEL_CGROUP_PERF
++	select KERNEL_CGROUP_HUGETLB
++	help
++		Select 'Optional Features' kernel options for Docker that are unselected.
++		See https://github.com/moby/moby/blob/master/contrib/check-config.sh
++
++menu "Network"
++	depends on PACKAGE_dockerd
++
++	config DOCKER_NET_OVERLAY
++		bool "Includes the Overlay network feature"
++		default n
++		select PACKAGE_kmod-vxlan
++		help
++			Selects kmod-vxlan for the Overlay network feature.
++
++	config DOCKER_NET_ENCRYPT
++		bool "Includes encrypted networking kernel modules"
++		depends on DOCKER_NET_OVERLAY
++		default n
++		select PACKAGE_kmod-crypto-gcm
++		select PACKAGE_kmod-crypto-seqiv
++		select PACKAGE_kmod-crypto-ghash
++		select PACKAGE_kmod-ipsec
++		help
++		  Select needed kernel modules for encrypted networking support.
++
++	config DOCKER_NET_MACVLAN
++		bool "Includes macvlan kernel modules"
++		default y
++		select PACKAGE_kmod-macvlan
++		select PACKAGE_kmod-dummy
++
++	config DOCKER_NET_TFTP
++		bool "Includes ftp/tftp client kernel modules"
++		default n
++		select PACKAGE_kmod-nf-nathelper
++		select PACKAGE_kmod-nf-nathelper-extra
++endmenu
++
++menu "Storage"
++	depends on PACKAGE_dockerd
++
++	config DOCKER_STO_EXT4
++		bool "Enables support for ext3 or ext4 as the backing filesystem"
++		default y
++		select KERNEL_EXT4_FS_POSIX_ACL
++		select KERNEL_EXT4_FS_SECURITY
++
++	config DOCKER_STO_BTRFS
++		bool "Enables support for btrfs as the backing filesystem"
++		default n
++		select KERNEL_BTRFS_FS_POSIX_ACL
++endmenu
+diff -uprN a/package/own/dockerd/files/daemon.json b/package/own/dockerd/files/daemon.json
+--- a/package/own/dockerd/files/daemon.json	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/dockerd/files/daemon.json	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,4 @@
++{
++    "data-root": "/opt/docker/",
++    "log-level": "warn"
++}
+diff -uprN a/package/own/dockerd/files/dockerd.init b/package/own/dockerd/files/dockerd.init
+--- a/package/own/dockerd/files/dockerd.init	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/dockerd/files/dockerd.init	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,283 @@
++#!/bin/sh /etc/rc.common
++
++USE_PROCD=1
++START=99
++
++extra_command "uciadd" "<interface> <device> <zone> Add docker bridge configuration to network and firewall uci config"
++extra_command "ucidel" "<interface> <device> <zone> Delete docker bridge configuration from network and firewall uci config"
++
++DOCKER_CONF_DIR="/tmp/dockerd"
++DOCKERD_CONF="${DOCKER_CONF_DIR}/daemon.json"
++
++uci_quiet() {
++	uci -q "${@}" >/dev/null
++}
++
++json_add_array_string() {
++	json_add_string "" "${1}"
++}
++
++find_network_device() {
++	local device="${1}"
++	local device_section=""
++
++	check_device() {
++		local cfg="${1}"
++		local device="${2}"
++
++		local type name
++		config_get type "${cfg}" type
++		config_get name "${cfg}" name
++
++		[ "${type}" = "bridge" ] && [ "${name}" = "${device}" ] \
++			&& device_section="${cfg}"
++	}
++
++	config_load network
++	config_foreach check_device device "${device}"
++
++	echo "${device_section}"
++}
++
++boot() {
++	uciadd
++	rc_procd start_service
++}
++
++uciadd() {
++	local iface="${1}"
++	local device="${2}"
++	local zone="${3}"
++
++	[ -z "${iface}" ] && {
++		iface="docker"
++		device="docker0"
++		zone="docker"
++	}
++
++	/etc/init.d/dockerd running && {
++		echo "Please stop dockerd service first"
++		exit 0
++	}
++
++	# Add network interface
++	if ! uci_quiet get network.${iface}; then
++		logger -t "dockerd-init" -p notice "Adding interface '${iface}' to network config"
++		uci_quiet add network interface
++		uci_quiet rename network.@interface[-1]="${iface}"
++		uci_quiet set network.@interface[-1].ifname="${device}"
++		uci_quiet set network.@interface[-1].proto="none"
++		uci_quiet set network.@interface[-1].auto="0"
++		uci_quiet commit network
++	fi
++
++	# Add docker bridge device
++	if [ "$(find_network_device "$device")" = "" ]; then
++		logger -t "dockerd-init" -p notice "Adding bridge device '${device}' to network config"
++		uci_quiet add network device
++		uci_quiet set network.@device[-1].type="bridge"
++		uci_quiet set network.@device[-1].name="${device}"
++		uci_quiet commit network
++	else
++		logger -t "dockerd-init" -p notice "Bridge device '${device}' already defined in network config"
++	fi
++
++	# Add firewall zone
++	if ! uci_quiet get firewall.${zone}; then
++		logger -t "dockerd-init" -p notice "Adding firewall zone '${zone}' to firewall config"
++		uci_quiet add firewall zone
++		uci_quiet rename firewall.@zone[-1]="${zone}"
++		uci_quiet set firewall.@zone[-1].input="ACCEPT"
++		uci_quiet set firewall.@zone[-1].output="ACCEPT"
++		uci_quiet set firewall.@zone[-1].forward="ACCEPT"
++		uci_quiet set firewall.@zone[-1].name="${zone}"
++		uci_quiet commit firewall
++	fi
++
++	# Add interface to firewall zone
++	if uci_quiet get firewall.${zone}; then
++		uci_quiet del_list firewall.${zone}.network="${iface}"
++		uci_quiet add_list firewall.${zone}.network="${iface}"
++		uci_quiet commit firewall
++	fi
++
++	reload_config
++}
++
++ucidel() {
++	local iface="${1}"
++	local device="${2}"
++	local zone="${3}"
++
++	[ -z "${iface}" ] && {
++		iface="docker"
++		device="docker0"
++		zone="docker"
++	}
++
++	/etc/init.d/dockerd running && {
++		echo "Please stop dockerd service first"
++		exit 0
++	}
++
++	# Remove network device
++	if uci_quiet delete network.$(find_network_device "${device}"); then
++		logger -t "dockerd-init" -p notice "Deleting bridge device '${device}' from network config"
++		uci_quiet commit network
++	fi
++
++	# Remove network interface
++	if uci_quiet get network.${iface}; then
++		logger -t "dockerd-init" -p notice "Deleting interface '${iface}' from network config"
++		uci_quiet delete network.${iface}
++		uci_quiet commit network
++	fi
++
++	# Remove interface from firewall zone
++	if uci_quiet get firewall.${zone}; then
++		logger -t "dockerd-init" -p notice "Deleting network interface '${iface}' in zone '${zone}' from firewall config"
++		uci_quiet del_list firewall.${zone}.network="${iface}"
++		uci_quiet commit firewall
++		# Remove Firewall zone if network is empty
++		if ! uci_quiet get firewall.${zone}.network; then
++			logger -t "dockerd-init" -p notice "Deleting firewall zone '${zone}' from firewall config"
++			uci_quiet delete firewall.${zone}
++		fi
++		uci_quiet commit firewall
++	fi
++
++	reload_config
++}
++
++process_config() {
++	local alt_config_file data_root log_level iptables bip
++
++	[ -f /etc/config/dockerd ] || {
++		# Use the daemon default configuration
++		DOCKERD_CONF=""
++		return 0
++	}
++
++	# reset configuration
++	rm -fr "${DOCKER_CONF_DIR}"
++	mkdir -p "${DOCKER_CONF_DIR}"
++
++	config_load 'dockerd'
++	config_get alt_config_file globals alt_config_file
++	[ -n "${alt_config_file}" ] && [ -f "${alt_config_file}" ] && {
++		ln -s "${alt_config_file}" "${DOCKERD_CONF}"
++		return 0
++	}
++
++	config_get data_root globals data_root "/opt/docker/"
++	config_get log_level globals log_level "warn"
++	config_get_bool iptables globals iptables "1"
++
++	# Don't add these options by default
++	# omission == docker defaults
++	config_get bip globals bip ""
++	config_get registry_mirrors globals registry_mirrors ""
++	config_get hosts globals hosts ""
++	config_get dns globals dns ""
++	config_get_bool ipv6 globals ipv6 ""
++	config_get ip globals ip ""
++	config_get fixed_cidr globals fixed_cidr ""
++	config_get fixed_cidr_v6 globals fixed_cidr_v6 ""
++
++	. /usr/share/libubox/jshn.sh
++	json_init
++	json_add_string "data-root" "${data_root}"
++	json_add_string "log-level" "${log_level}"
++	json_add_boolean "iptables" "${iptables}"
++	[ -z "${bip}" ] || json_add_string "bip" "${bip}"
++	[ -z "${registry_mirrors}" ] || json_add_array "registry-mirrors"
++	[ -z "${registry_mirrors}" ] || config_list_foreach globals registry_mirrors json_add_array_string
++	[ -z "${registry_mirrors}" ] || json_close_array
++	[ -z "${hosts}" ] || json_add_array "hosts"
++	[ -z "${hosts}" ] || config_list_foreach globals hosts json_add_array_string
++	[ -z "${hosts}" ] || json_close_array
++	[ -z "${dns}" ] || json_add_array "dns"
++	[ -z "${dns}" ] || config_list_foreach globals dns json_add_array_string
++	[ -z "${dns}" ] || json_close_array
++	[ -z "${ipv6}" ] || json_add_boolean "ipv6" "${ipv6}"
++	[ -z "${ip}" ] || json_add_string "ip" "${ip}"
++	[ -z "${fixed_cidr}" ] || json_add_string "fixed-cidr" "${fixed_cidr}"
++	[ -z "${fixed_cidr_v6}" ] || json_add_string "fixed-cidr-v6" "${fixed_cidr_v6}"
++	json_dump > "${DOCKERD_CONF}"
++
++	[ "${iptables}" -eq "1" ] && config_foreach iptables_add_blocking_rule firewall
++}
++
++start_service() {
++	local nofile=$(cat /proc/sys/fs/nr_open)
++
++	process_config
++
++	procd_open_instance
++	procd_set_param stderr 1
++	if [ -z "${DOCKERD_CONF}" ]; then
++		procd_set_param command /usr/bin/dockerd
++	else
++		procd_set_param command /usr/bin/dockerd --config-file="${DOCKERD_CONF}"
++	fi
++	procd_set_param limits nofile="${nofile} ${nofile}"
++	procd_close_instance
++}
++
++reload_service() {
++	process_config
++	procd_send_signal dockerd
++}
++
++service_triggers() {
++	procd_add_reload_trigger 'dockerd'
++}
++
++iptables_add_blocking_rule() {
++	local cfg="${1}"
++
++	local device=""
++	local extra_iptables_args=""
++
++	handle_iptables_rule() {
++		local interface="${1}"
++		local outbound="${2}"
++		local extra_iptables_args="${3}"
++
++		local inbound=""
++
++		. /lib/functions/network.sh
++		network_get_physdev inbound "${interface}"
++
++		[ -z "${inbound}" ] && {
++			logger -t "dockerd-init" -p notice "Unable to get physical device for interface ${interface}"
++			return
++		}
++
++		# Wait for a maximum of 10 second per command, retrying every millisecond
++		local iptables_wait_args="--wait 10 --wait-interval 1000"
++
++		# Ignore errors as it might already be present
++		iptables ${iptables_wait_args} --table filter --new DOCKER-USER 2>/dev/null
++		if ! iptables ${iptables_wait_args} --table filter --check DOCKER-USER --in-interface "${inbound}" --out-interface "${outbound}" ${extra_iptables_args} --jump REJECT 2>/dev/null; then
++			logger -t "dockerd-init" -p notice "Drop traffic from ${inbound} to ${outbound}"
++			iptables ${iptables_wait_args} --table filter --insert DOCKER-USER --in-interface "${inbound}" --out-interface "${outbound}" ${extra_iptables_args} --jump REJECT
++		fi
++	}
++
++	config_get device "${cfg}" device
++
++	[ -z "${device}" ] && {
++		logger -t "dockerd-init" -p notice "No device configured for ${cfg}"
++		return
++	}
++
++	config_get extra_iptables_args "${cfg}" extra_iptables_args
++	config_list_foreach "${cfg}" blocked_interfaces handle_iptables_rule "${device}" "${extra_iptables_args}"
++}
++
++stop_service() {
++	if /etc/init.d/dockerd running; then
++		service_stop "/usr/bin/dockerd"
++	fi
++}
+diff -uprN a/package/own/dockerd/files/etc/config/dockerd b/package/own/dockerd/files/etc/config/dockerd
+--- a/package/own/dockerd/files/etc/config/dockerd	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/dockerd/files/etc/config/dockerd	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,29 @@
++# The following settings require a restart of docker to take full effect, A reload will only have partial or no effect:
++# bip
++# blocked_interfaces
++# extra_iptables_args
++# device
++
++config globals 'globals'
++#	option alt_config_file '/etc/docker/daemon.json'
++	option data_root '/opt/docker/'
++	option log_level 'warn'
++	option iptables '1'
++#	list hosts 'unix:///var/run/docker.sock'
++#	option bip '172.18.0.1/24'
++#	option fixed_cidr '172.17.0.0/16'
++#	option fixed_cidr_v6 'fc00:1::/80'
++#	option ipv6 '1'
++#	option ip '::ffff:0.0.0.0'
++#	list dns '172.17.0.1'
++#	list registry_mirrors 'https://<my-docker-mirror-host>'
++#	list registry_mirrors 'https://hub.docker.com'
++
++# Docker ignores fw3 rules and by default all external source IPs are allowed to connect to the Docker host.
++# See https://docs.docker.com/network/iptables/ for more details.
++# firewall config changes are only additive i.e firewall will need to be restarted first to clear old changes,
++# then docker restarted to load in new changes.
++config firewall 'firewall'
++	option device 'docker0'
++	list blocked_interfaces 'wan'
++#	option extra_iptables_args '--match conntrack ! --ctstate RELATED,ESTABLISHED' # allow outbound connections
+diff -uprN a/package/own/dockerd/files/etc/sysctl.d/sysctl-br-netfilter-ip.conf b/package/own/dockerd/files/etc/sysctl.d/sysctl-br-netfilter-ip.conf
+--- a/package/own/dockerd/files/etc/sysctl.d/sysctl-br-netfilter-ip.conf	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/dockerd/files/etc/sysctl.d/sysctl-br-netfilter-ip.conf	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,7 @@
++# Do not edit, changes to this file will be lost on upgrades
++# /etc/sysctl.conf can be used to customize sysctl settings
++
++# enable bridge firewalling for docker
++net.bridge.bridge-nf-call-ip6tables=1
++net.bridge.bridge-nf-call-iptables=1
++
+diff -uprN a/package/own/dockerd/git-short-commit.sh b/package/own/dockerd/git-short-commit.sh
+--- a/package/own/dockerd/git-short-commit.sh	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/dockerd/git-short-commit.sh	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,48 @@
++#!/bin/sh
++#
++#	USAGE: git-short-commit.sh <GIT_URL> <GIT_REF> <GIT_DIR>
++#
++
++set -e
++
++error() {
++	echo "ERROR: ${*}" >&2
++	exit 1
++}
++
++GIT_URL="${1}"
++if [ -z "${GIT_URL}" ]; then
++	error "Git URL not specified"
++fi
++
++GIT_REF="${2}"
++if [ -z "${GIT_REF}" ]; then
++	error "Git reference not specified"
++fi
++
++GIT_DIR="${3}"
++if [ -z "${GIT_DIR}" ]; then
++	error "Git clone directory not specified"
++fi
++
++clean_up() {
++	rm --force --recursive "${GIT_DIR}"
++}
++trap clean_up EXIT
++
++git init --quiet "${GIT_DIR}"
++(
++	cd "${GIT_DIR}"
++	for PREFIX in "" "https://" "http://" "git@"; do
++		echo "Trying remote '${PREFIX}${GIT_URL}'" >&2
++		git remote add origin "${PREFIX}${GIT_URL}"
++
++		if git fetch --depth 1 origin "${GIT_REF}"; then
++			git checkout --detach FETCH_HEAD --
++			git rev-parse --short HEAD
++			break
++		fi
++
++		git remote remove origin
++	done
++)
+diff -uprN a/package/own/dockerd/Makefile b/package/own/dockerd/Makefile
+--- a/package/own/dockerd/Makefile	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/dockerd/Makefile	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,157 @@
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=dockerd
++PKG_VERSION:=20.10.14
++PKG_RELEASE:=$(AUTORELEASE)
++PKG_LICENSE:=Apache-2.0
++PKG_LICENSE_FILES:=LICENSE
++
++PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
++PKG_GIT_URL:=github.com/moby/moby
++PKG_GIT_REF:=v$(PKG_VERSION)
++PKG_SOURCE_URL:=https://codeload.$(PKG_GIT_URL)/tar.gz/$(PKG_GIT_REF)?
++PKG_HASH:=dbe1ae342351108b7b30232c4bce0559c81ad9fb6c978d7c8425d6aa53e476c1
++PKG_GIT_SHORT_COMMIT:=87a90dc # SHA1 used within the docker executables
++
++PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
++
++PKG_BUILD_DEPENDS:=golang/host
++PKG_BUILD_PARALLEL:=1
++PKG_USE_MIPS16:=0
++
++GO_PKG:=github.com/docker/docker
++
++include $(INCLUDE_DIR)/package.mk
++include $(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
++
++define Package/dockerd/config
++  source "$(SOURCE)/Config.in"
++endef
++
++define Package/dockerd
++  SECTION:=utils
++  CATEGORY:=Utilities
++  TITLE:=Docker Community Edition Daemon
++  URL:=https://www.docker.com/
++  DEPENDS:=$(GO_ARCH_DEPENDS) +btrfs-progs +ca-certificates +containerd +libdevmapper +libnetwork +tini \
++           +@KERNEL_NAMESPACES +KERNEL_SECCOMP:libseccomp +iptables-mod-extra +kmod-br-netfilter +kmod-ikconfig \
++           +kmod-nf-conntrack-netlink +kmod-nf-ipvs +kmod-nf-nat +kmod-veth
++  USERID:=docker:docker
++  MENU:=1
++endef
++
++define Package/dockerd/conffiles
++/etc/config/dockerd
++endef
++
++define Package/dockerd/description
++The Docker CE Engine.
++endef
++
++GO_PKG_BUILD_VARS += GO111MODULE=auto
++TAR_OPTIONS:=--strip-components 1 $(TAR_OPTIONS)
++TAR_CMD=$(HOST_TAR) -C $(1) $(TAR_OPTIONS)
++
++# $(1) = path to dependent package 'Makefile'
++# $(2) = relevant dependency '.installer' file
++define EnsureVendoredVersion
++	( \
++		DEP_VER=$$$$( grep --only-matching --perl-regexp '(?<=PKG_VERSION:=)(.*)' "$(1)" ); \
++		VEN_VER=$$$$( grep --only-matching --perl-regexp '(?<=_VERSION:=v)(.*)(?=})' "$(PKG_BUILD_DIR)/hack/dockerfile/install/$(2)" ); \
++		if [ "$$$${VEN_VER}" != "$$$${DEP_VER}" ]; then \
++			echo "ERROR: Expected 'PKG_VERSION:=$$$${VEN_VER}' in '$(1)', found 'PKG_VERSION:=$$$${DEP_VER}'"; \
++			exit 1; \
++		fi \
++	)
++endef
++
++define Build/Prepare
++	$(Build/Prepare/Default)
++
++	# Verify dependencies are the vendored version
++	$(call EnsureVendoredVersion,../containerd/Makefile,containerd.installer)
++	$(call EnsureVendoredVersion,../libnetwork/Makefile,proxy.installer)
++	$(call EnsureVendoredVersion,../runc/Makefile,runc.installer)
++	$(call EnsureVendoredVersion,../tini/Makefile,tini.installer)
++
++	# Verify CLI is the same version
++	( \
++		CLI_MAKEFILE="../docker/Makefile"; \
++		CLI_VERSION=$$$$( grep --only-matching --perl-regexp '(?<=PKG_VERSION:=)(.*)' "$$$${CLI_MAKEFILE}" ); \
++		if [ "$$$${CLI_VERSION}" != "$(PKG_VERSION)" ]; then \
++			echo "ERROR: Expected 'PKG_VERSION:=$(PKG_VERSION)' in '$$$${CLI_MAKEFILE}', found 'PKG_VERSION:=$$$${CLI_VERSION}'"; \
++			exit 1; \
++		fi \
++	)
++
++	# Verify PKG_GIT_SHORT_COMMIT
++	( \
++		EXPECTED_PKG_GIT_SHORT_COMMIT=$$$$( $(CURDIR)/git-short-commit.sh '$(PKG_GIT_URL)' '$(PKG_GIT_REF)' '$(TMP_DIR)/git-short-commit/$(PKG_NAME)-$(PKG_VERSION)' ); \
++		if [ "$$$${EXPECTED_PKG_GIT_SHORT_COMMIT}" != "$(strip $(PKG_GIT_SHORT_COMMIT))" ]; then \
++			echo "ERROR: Expected 'PKG_GIT_SHORT_COMMIT:=$$$${EXPECTED_PKG_GIT_SHORT_COMMIT}', found 'PKG_GIT_SHORT_COMMIT:=$(strip $(PKG_GIT_SHORT_COMMIT))'"; \
++			exit 1; \
++		fi \
++	)
++endef
++
++BUILDTAGS:=
++ifeq ($(KERNEL_SECCOMP),y)
++BUILDTAGS += seccomp
++endif
++ifeq ($(CONFIG_SELINUX),y)
++BUILDTAGS += selinux
++endif
++
++define Build/Compile
++	( \
++		cd $(PKG_BUILD_DIR); \
++		$(GO_PKG_VARS) \
++		DOCKER_GITCOMMIT=$(PKG_GIT_SHORT_COMMIT) \
++		DOCKER_BUILDTAGS='$(BUILDTAGS)' \
++		VERSION=$(PKG_VERSION) \
++		./hack/make.sh binary; \
++	)
++endef
++
++define Package/dockerd/install
++	$(INSTALL_DIR) $(1)/usr/bin/
++	$(INSTALL_BIN) $(PKG_BUILD_DIR)/bundles/binary-daemon/dockerd $(1)/usr/bin/
++
++	$(INSTALL_DIR) $(1)/opt/docker/
++	$(INSTALL_DIR) $(1)/usr/share/docker/
++	$(INSTALL_BIN) $(PKG_BUILD_DIR)/contrib/check-config.sh $(1)/usr/share/docker/
++
++	$(INSTALL_DIR) $(1)/etc/docker
++	$(INSTALL_CONF) ./files/daemon.json $(1)/etc/docker/
++
++	$(INSTALL_DIR) $(1)/etc/init.d
++	$(INSTALL_BIN) ./files/dockerd.init $(1)/etc/init.d/dockerd
++
++	$(INSTALL_DIR) $(1)/etc/config
++	$(INSTALL_CONF) ./files/etc/config/dockerd $(1)/etc/config/dockerd
++
++	# Must be after systcl 11-br-netfilter.conf from kmod-br-netfilter
++	$(INSTALL_DIR) $(1)/etc/sysctl.d
++	$(INSTALL_DATA) ./files/etc/sysctl.d/sysctl-br-netfilter-ip.conf \
++		$(1)/etc/sysctl.d/12-br-netfilter-ip.conf
++endef
++
++define Package/dockerd/postinst
++#!/bin/sh
++[ -n "$$IPKG_INSTROOT" ] || {
++	/etc/init.d/dockerd enable
++	/etc/init.d/dockerd uciadd
++	/etc/init.d/dockerd start
++}
++endef
++
++define Package/dockerd/prerm
++#!/bin/sh
++[ -n "$$IPKG_INSTROOT" ] || {
++	/etc/init.d/dockerd disable
++	/etc/init.d/dockerd stop
++	/etc/init.d/dockerd ucidel
++}
++endef
++
++$(eval $(call BuildPackage,dockerd))
+diff -uprN a/package/own/dockerd/patches/001-libdevmapper_name_fix.patch b/package/own/dockerd/patches/001-libdevmapper_name_fix.patch
+--- a/package/own/dockerd/patches/001-libdevmapper_name_fix.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/dockerd/patches/001-libdevmapper_name_fix.patch	2022-05-02 11:40:24.356594736 +0800
+@@ -0,0 +1,11 @@
++--- a/hack/make.sh
+++++ b/hack/make.sh
++@@ -95,7 +95,7 @@ fi
++ # with a newer libdevmapper than the one it was built with.
++ if
++ 	command -v gcc &> /dev/null \
++-		&& ! (echo -e '#include <libdevmapper.h>\nint main() { dm_task_deferred_remove(NULL); }' | gcc -xc - -o /dev/null $(pkg-config --libs devmapper) &> /dev/null) \
+++		&& ! (echo -e '#include <libdevmapper.h>\nint main() { dm_task_deferred_remove(NULL); }' | gcc -xc - -o /dev/null $(pkg-config --libs libdevmapper) &> /dev/null) \
++ 		;
++ then
++ 	add_buildtag libdm dlsym_deferred_remove

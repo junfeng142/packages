@@ -113,7 +113,7 @@ diff -uprN a/package/own/luci-app-cpufreq/Makefile b/package/own/luci-app-cpufre
 +PKG_VERSION:=1
 +PKG_RELEASE:=$(COMMITCOUNT)
 +
-+include ../../luci.mk
++include $(TOPDIR)/feeds/luci/luci.mk
 +
 +# call BuildPackage - OpenWrt buildroot signature
 diff -uprN a/package/own/luci-app-cpufreq/po/zh_Hans/cpufreq.po b/package/own/luci-app-cpufreq/po/zh_Hans/cpufreq.po
@@ -512,7 +512,7 @@ diff -uprN a/package/own/luci-app-turboacc/Makefile b/package/own/luci-app-turbo
 +	default n
 +endef
 +
-+include ../../luci.mk
++include $(TOPDIR)/feeds/luci/luci.mk
 +
 +# call BuildPackage - OpenWrt buildroot signature
 diff -uprN a/package/own/luci-app-turboacc/po/zh-cn/turboacc.po b/package/own/luci-app-turboacc/po/zh-cn/turboacc.po

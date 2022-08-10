@@ -16,7 +16,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/luci2-cputemp
   TITLE:=Display CPU temperature
   MAINTAINER:=javonca
-  DEPENDS:=+
+  DEPENDS:=+@LUCI_LANG_zh_Hans
   VARIANT:=arm
 endef
 

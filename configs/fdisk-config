@@ -1,4 +1,0 @@
-CONFIG_PACKAGE_libfdisk=y
-CONFIG_PACKAGE_libncurses=y
-CONFIG_PACKAGE_terminfo=y
-CONFIG_PACKAGE_fdisk=y

@@ -1,0 +1,237 @@
+diff -uprN a/feeds/luci/applications/luci-app-cpufreq/luasrc/controller/cpufreq.lua b/feeds/luci/applications/luci-app-cpufreq/luasrc/controller/cpufreq.lua
+--- a/feeds/luci/applications/luci-app-cpufreq/luasrc/controller/cpufreq.lua	2022-08-14 16:47:43.115282397 +0800
++++ b/feeds/luci/applications/luci-app-cpufreq/luasrc/controller/cpufreq.lua	2022-08-06 20:04:41.337326000 +0800
+@@ -5,7 +5,7 @@ function index()
+ 		return
+ 	end
+ 
+-	local page = entry({"admin", "system", "cpufreq"}, cbi("cpufreq"), _("CPU Freq"), 90)
++	local page = entry({"admin", "services", "cpufreq"}, cbi("cpufreq"), _("CPU Freq"), 90)
+ 	page.dependent = false
+ 	page.acl_depends = { "luci-app-cpufreq" }
+ end
+diff -uprN a/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/luci-app-ttyd.json b/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/luci-app-ttyd.json
+--- a/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/luci-app-ttyd.json	2022-07-31 19:42:37.670897000 +0800
++++ b/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/luci-app-ttyd.json	2022-08-06 20:03:38.542863167 +0800
+@@ -1,6 +1,7 @@
+ {
+ 	"admin/system/ttyd": {
+ 		"title": "Terminal",
++        "order": 10,
+ 		"action": {
+ 			"type": "firstchild"
+ 		},
+diff -uprN a/feeds/luci/applications/luci-app-turboacc/po/zh_Hans/turboacc.po b/feeds/luci/applications/luci-app-turboacc/po/zh_Hans/turboacc.po
+--- a/feeds/luci/applications/luci-app-turboacc/po/zh_Hans/turboacc.po	2022-06-12 10:10:05.711573000 +0800
++++ b/feeds/luci/applications/luci-app-turboacc/po/zh_Hans/turboacc.po	2022-08-14 16:49:47.492163666 +0800
+@@ -1,5 +1,5 @@
+ msgid "Turbo ACC Center"
+-msgstr "Turbo ACC 网络加速"
++msgstr "网络加速"
+ 
+ msgid "Turbo ACC Acceleration Settings"
+ msgstr "Turbo ACC 网络加速设置"
+diff -uprN a/package/own/xradio/Makefile b/package/own/xradio/Makefile
+--- a/package/own/xradio/Makefile	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/xradio/Makefile	2022-05-02 11:40:24.360594000 +0800
+@@ -0,0 +1,62 @@
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=xradio
++PKG_RELEASE=1
++
++PKG_LICENSE:=GPLv2
++PKG_LICENSE_FILES:=
++
++PKG_SOURCE_URL:=https://github.com/fifteenhex/xradio.git
++PKG_SOURCE_PROTO:=git
++PKG_SOURCE_DATE:=2021-03-06
++PKG_SOURCE_VERSION:=c909de15239a94e941ae5985991cdb68d8e9f5c9
++# PKG_SOURCE_DATE:=2020-03-21
++# PKG_SOURCE_VERSION:=8965ea55ddfd862ee76384913f82e6b69628cd27
++
++PKG_BUILD_PARALLEL:=1
++
++include $(INCLUDE_DIR)/kernel.mk
++include $(INCLUDE_DIR)/package.mk
++
++define Download/xr819
++  FILE:=xr819.tar.bz2
++  URL:=https://github.com/melsem/openwrt-lede_xradio-xr819_soc-audio/raw/master/firmware/
++  HASH:=bc9bae512267e04b6d00ffe18fe68a4181c9a5af35f765dfbabdeedd28c8f4f7
++endef
++$(eval $(call Download,xr819))
++
++define KernelPackage/xradio
++  SUBMENU:=Wireless Drivers Test-xr819
++  TITLE:=Xradio xr819 test wifi-drivers support
++  DEPENDS:=@TARGET_sunxi +kmod-mac80211 +wpad-mini
++  KCONFIG:= \
++	CONFIG_WLAN_VENDOR_XRADIO=m \
++	CONFIG_XRADIO_USE_EXTENSIONS=y
++  FILES:=$(PKG_BUILD_DIR)/xradio_wlan.ko
++  AUTOLOAD:=$(call AutoProbe,xradio_wlan)
++endef
++
++NOSTDINC_FLAGS = \
++	-I$(PKG_BUILD_DIR) \
++	-I$(STAGING_DIR)/usr/include/mac80211-backport/uapi \
++	-I$(STAGING_DIR)/usr/include/mac80211-backport \
++	-I$(STAGING_DIR)/usr/include/mac80211/uapi \
++	-I$(STAGING_DIR)/usr/include/mac80211 \
++	-include backport/autoconf.h \
++	-include backport/backport.h
++
++define Build/Compile
++	+$(MAKE) $(PKG_JOBS) -C "$(LINUX_DIR)" \
++		$(KERNEL_MAKE_FLAGS) \
++		$(PKG_MAKE_FLAGS) \
++		M="$(PKG_BUILD_DIR)" \
++		NOSTDINC_FLAGS="$(NOSTDINC_FLAGS)" \
++		modules
++endef
++
++define KernelPackage/xradio/install
++	$(INSTALL_DIR) $(1)/lib/firmware/xr819
++	$(TAR) -C $(1)/lib/firmware -xjf $(DL_DIR)/xr819.tar.bz2
++endef
++
++$(eval $(call KernelPackage,xradio))
+diff -uprN a/package/own/xradio/patches/001-xradio-disable-warnings.patch b/package/own/xradio/patches/001-xradio-disable-warnings.patch
+--- a/package/own/xradio/patches/001-xradio-disable-warnings.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/xradio/patches/001-xradio-disable-warnings.patch	2022-05-02 11:40:24.360594000 +0800
+@@ -0,0 +1,48 @@
++--- a/ap.c	2020-03-22 10:05:32.000000000 +0200
+++++ b/ap.c	2020-03-27 21:36:07.442219682 +0200
++@@ -1119,11 +1173,8 @@
++ 		.rate = 0xFF,
++ 	};
++ 
++-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 17))
++ 	frame.skb = ieee80211_nullfunc_get(priv->hw, priv->vif, false);
++-#else
++-	frame.skb = ieee80211_nullfunc_get(priv->hw, priv->vif);
++-#endif
+++
++ 	if (WARN_ON(!frame.skb))
++ 		return -ENOMEM;
++ 
++--- a/bh.c	2020-03-22 10:05:32.000000000 +0200
+++++ b/bh.c	2020-03-27 21:36:07.446219702 +0200
++@@ -776,7 +776,7 @@
++ 		} else if (!status) {
++ 			/* check if there is data waiting but we missed the interrupt*/
++ 			if (xradio_bh_rx_availlen(hw_priv) > 0) {
++-				dev_warn(hw_priv->pdev, "missed interrupt\n");
+++				//dev_warn(hw_priv->pdev, "missed interrupt\n");
++ 				if(xradio_bh_exchange(hw_priv) < 0){
++ 					break;
++ 				}
++--- a/rx.c	2020-03-22 10:05:32.000000000 +0200
+++++ b/rx.c	2020-03-27 21:36:07.466219801 +0200
++@@ -394,7 +394,7 @@
++ 		/* Double-check status with lock held */
++ 		if (entry->status == XRADIO_LINK_SOFT) {
++ 			skb_queue_tail(&entry->rx_queue, skb);
++-			dev_warn(priv->hw_priv->pdev, "***skb_queue_tail\n");
+++			//dev_warn(priv->hw_priv->pdev, "***skb_queue_tail\n");
++ 		} else
++ 			ieee80211_rx_irqsafe(priv->hw, skb);
++ 		spin_unlock_bh(&priv->ps_state_lock);
++--- a/main.c
+++++ b/main.c
++@@ -161,7 +174,9 @@
++ 	/* Intentionally not offloaded:					*/
++ 	/*.channel_switch	 = xradio_channel_switch,		*/
++ 	.remain_on_channel = xradio_remain_on_channel,
+++#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
++ 	.cancel_remain_on_channel = xradio_cancel_remain_on_channel,
+++#endif
++ };
++ 
+diff -uprN a/package/own/xradio/patches/002-Slightly-improved-latency-and-performance-of-RX.patch b/package/own/xradio/patches/002-Slightly-improved-latency-and-performance-of-RX.patch
+--- a/package/own/xradio/patches/002-Slightly-improved-latency-and-performance-of-RX.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/xradio/patches/002-Slightly-improved-latency-and-performance-of-RX.patch	2022-05-02 11:40:24.360594000 +0800
+@@ -0,0 +1,82 @@
++Slightly improved latency and performance of RX packets
++
++Dymanically decrease the sleep time when waiting for interrupts
++from the radio, to reduce latency during active communication.
++This helps, because we are missing some interrupts.
++
++Print an error when xradio,xr819 is not found in DTS, which
++results in running without any interrupts.
++
++Reduce the number of xradio_bh_rx_availlen() calls, because when
++called too often we are getting an error:
++sunxi-mmc 1c10000.mmc: data error, sending stop command
++Caused by a timeout while communicating with the radio, to query
++how much data is available to read if any. The timeout is likely
++a hardware issue with Orange Pi Zero and other similar boards.
++
++Signed-off-by: Georgi Valkov <gvalkov@abv.bg>
++
++--- a/bh.c
+++++ b/bh.c
++@@ -565,7 +565,8 @@
++ 		goto out;
++ 	}
++ 
++-	ret = 1;
+++	/* if *nextlen is 0, there are no more packets to receive */
+++	ret = 1 && *nextlen;
++ 
++ out:
++ 	/* Reclaim the SKB buffer */
++@@ -753,13 +754,16 @@
++ 	long status;
++ 
++ 	for (;;) {
++-		timeout = HZ / 30;
+++		/* if we got awaken by interrupt last time, there is a good chance
+++		* to receive more data soon. Use the shortest sleep time in case
+++		* we miss an interrupt */
+++		timeout = wake ? 1 : HZ / 30;
++ 
++ 		// wait for something to happen or a timeout
++ 		status = wait_event_interruptible_timeout(hw_priv->bh_wq, ( {
++-					wake = atomic_xchg(&hw_priv->bh_tx, 0);
++ 					term = kthread_should_stop();
++ 					suspend = atomic_read(&hw_priv->bh_suspend);
+++					wake = atomic_xchg(&hw_priv->bh_tx, 0);
++ 					(wake || term || suspend);}), timeout);
++ 
++ 		if (wake) {
++@@ -774,8 +778,17 @@
++ 					hw_priv->bh_error, status);
++ 			break;
++ 		} else if (!status) {
+++			/* wait timed out
+++			* check if a late interrupt arrived in the last moment */
+++			if (atomic_xchg(&hw_priv->bh_tx, 0))
+++			{
+++				wake = 1;
+++				if(xradio_bh_exchange(hw_priv) < 0){
+++				break;
+++				}
+++			}
++ 			/* check if there is data waiting but we missed the interrupt*/
++-			if (xradio_bh_rx_availlen(hw_priv) > 0) {
+++			else if (xradio_bh_rx_availlen(hw_priv) > 0) {
++ 				//dev_warn(hw_priv->pdev, "missed interrupt\n");
++ 				if(xradio_bh_exchange(hw_priv) < 0){
++ 					break;
++--- a/sdio.c
+++++ b/sdio.c
++@@ -136,8 +136,10 @@
++ 	int irq;
++ 
++ 	of_id = of_match_node(xradio_sdio_of_match_table, np);
++-	if (!of_id)
+++	if (!of_id) {
+++		dev_err(dev, "SDIO: xradio,xr819 not found in DTS\n");
++ 		return -ENODEV;
+++	}
++ 
++ 	//pdev_data->family = of_id->data;
++ 

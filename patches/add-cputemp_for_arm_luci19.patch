@@ -71,7 +71,7 @@ diff -Naru a/feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/vie
  			_('Hostname'),         boardinfo.hostname,
 -			_('Model'),            boardinfo.model,
 -			_('Architecture'),     boardinfo.system,
-+			_('Model'),            boardinfo.model + cpuinfo.cpumark,_('CPU Info'),
++			_('Model'),            boardinfo.model + cpuinfo.cpumark,
 +			_('Architecture'),     boardinfo.system + ' [ '+cpuinfo.cputemp+' ℃ / '+cpuinfo.cpufreq+' % ] ',
  			_('Firmware Version'), (L.isObject(boardinfo.release) ? boardinfo.release.description + ' / ' : '') + (luciversion || ''),
  			_('Kernel Version'),   boardinfo.kernel,

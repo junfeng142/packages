@@ -12,7 +12,7 @@ diff -Naru a/feeds/luci/modules/luci-base/root/usr/libexec/rpcd/luci b/feeds/luc
 +			local sys = require "luci.sys"
 +			local rv = {}
 +
-+			rv.cpufreq      = sys.exec("echo -e `expr 100 - $(top -n 1 | grep 'CPU:' | awk -F '%' '{ print $4 }' | awk -F ' ' '{ print $2 }')`") or "0"
++			rv.cpufreq      = sys.exec("echo $( echo $(cat /proc/stat | grep \"^cpu \" | awk '{print $1+$2+$3+$4+$5+$6+$7 \" \" $1+$2+$3+$6+$7}') $(sleep 1 && cat /proc/stat | grep \"^cpu \" | awk '{print $1+$2+$3+$4+$5+$6+$7 \" \" $1+$2+$3+$6+$7}') | awk '{print (($4-$2)/($3-$1))*100}' | cut -c1-4)")
 +			rv.cputemp      = sys.exec("cat /sys/class/thermal/thermal_zone0/temp | awk '{print $1/1000}' | cut -c1-4")
 +           rv.cpumark      = sys.exec("cat /etc/bench.log")
 +			return rv

@@ -9,6 +9,27 @@ diff -uprN a/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/lu
  		"action": {
  			"type": "firstchild"
  		},
+diff -uprN a/target/linux/ramips/dts/mt7620a_hiwifi_hc5761.dts b/target/linux/ramips/dts/mt7620a_hiwifi_hc5761.dts
+--- a/target/linux/ramips/dts/mt7620a_hiwifi_hc5761.dts	2022-07-31 19:38:15.744413000 +0800
++++ b/target/linux/ramips/dts/mt7620a_hiwifi_hc5761.dts	2022-09-11 12:47:52.656263902 +0800
+@@ -36,6 +36,17 @@
+ 			linux,default-trigger = "phy0tpt";
+ 		};
+ 	};
++
++    gpio_export {
++		compatible = "gpio-export";
++		#size-cells = <0>;
++
++		usbpower {
++			gpio-export,name = "usbpower";
++			gpio-export,output = <1>;
++			gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
++		};
++	};
+ };
+ 
+ &ehci {
 diff -uprN a/package/own/xradio/Makefile b/package/own/xradio/Makefile
 --- a/package/own/xradio/Makefile	1970-01-01 08:00:00.000000000 +0800
 +++ b/package/own/xradio/Makefile	2022-05-02 11:40:24.360594000 +0800

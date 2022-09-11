@@ -1,15 +1,3 @@
-diff -uprN a/feeds/luci/applications/luci-app-cpufreq/luasrc/controller/cpufreq.lua b/feeds/luci/applications/luci-app-cpufreq/luasrc/controller/cpufreq.lua
---- a/feeds/luci/applications/luci-app-cpufreq/luasrc/controller/cpufreq.lua	2022-08-14 16:47:43.115282397 +0800
-+++ b/feeds/luci/applications/luci-app-cpufreq/luasrc/controller/cpufreq.lua	2022-08-06 20:04:41.337326000 +0800
-@@ -5,7 +5,7 @@ function index()
- 		return
- 	end
- 
--	local page = entry({"admin", "system", "cpufreq"}, cbi("cpufreq"), _("CPU Freq"), 90)
-+	local page = entry({"admin", "services", "cpufreq"}, cbi("cpufreq"), _("CPU Freq"), 90)
- 	page.dependent = false
- 	page.acl_depends = { "luci-app-cpufreq" }
- end
 diff -uprN a/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/luci-app-ttyd.json b/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/luci-app-ttyd.json
 --- a/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/luci-app-ttyd.json	2022-07-31 19:42:37.670897000 +0800
 +++ b/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/luci-app-ttyd.json	2022-08-06 20:03:38.542863167 +0800
@@ -21,16 +9,6 @@ diff -uprN a/feeds/luci/applications/luci-app-ttyd/root/usr/share/luci/menu.d/lu
  		"action": {
  			"type": "firstchild"
  		},
-diff -uprN a/feeds/luci/applications/luci-app-turboacc/po/zh_Hans/turboacc.po b/feeds/luci/applications/luci-app-turboacc/po/zh_Hans/turboacc.po
---- a/feeds/luci/applications/luci-app-turboacc/po/zh_Hans/turboacc.po	2022-06-12 10:10:05.711573000 +0800
-+++ b/feeds/luci/applications/luci-app-turboacc/po/zh_Hans/turboacc.po	2022-08-14 16:49:47.492163666 +0800
-@@ -1,5 +1,5 @@
- msgid "Turbo ACC Center"
--msgstr "Turbo ACC 网络加速"
-+msgstr "网络加速"
- 
- msgid "Turbo ACC Acceleration Settings"
- msgstr "Turbo ACC 网络加速设置"
 diff -uprN a/package/own/xradio/Makefile b/package/own/xradio/Makefile
 --- a/package/own/xradio/Makefile	1970-01-01 08:00:00.000000000 +0800
 +++ b/package/own/xradio/Makefile	2022-05-02 11:40:24.360594000 +0800

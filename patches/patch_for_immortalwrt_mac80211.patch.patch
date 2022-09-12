@@ -1,0 +1,637 @@
+diff -uprN a/package/kernel/mac80211/intel.mk b/package/kernel/mac80211/intel.mk
+--- a/package/kernel/mac80211/intel.mk	2022-09-11 11:59:16.311478000 +0800
++++ b/package/kernel/mac80211/intel.mk	2022-09-12 17:18:11.000000000 +0800
+@@ -124,7 +124,7 @@ endef
+ define KernelPackage/libipw
+   $(call KernelPackage/mac80211/Default)
+   TITLE:=libipw for ipw2100 and ipw2200
+-  DEPENDS:=@PCI_SUPPORT +kmod-crypto-michael-mic +kmod-crypto-ecb +kmod-lib80211 +kmod-cfg80211 +@DRIVER_WEXT_SUPPORT @!BIG_ENDIAN @!TARGET_zynq
++  DEPENDS:=@PCI_SUPPORT +kmod-crypto-michael-mic +kmod-crypto-ecb +kmod-lib80211 +kmod-cfg80211 +@DRIVER_WEXT_SUPPORT @!BIG_ENDIAN
+   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intel/ipw2x00/libipw.ko
+   AUTOLOAD:=$(call AutoProbe,libipw)
+ endef
+diff -uprN a/package/kernel/mac80211/Makefile b/package/kernel/mac80211/Makefile
+--- a/package/kernel/mac80211/Makefile	2022-09-11 11:59:16.311478000 +0800
++++ b/package/kernel/mac80211/Makefile	2022-09-12 17:18:11.000000000 +0800
+@@ -176,7 +176,7 @@ endef
+ define KernelPackage/hermes
+   $(call KernelPackage/mac80211/Default)
+   TITLE:=Hermes 802.11b chipset support
+-  DEPENDS:=@PCI_SUPPORT||PCMCIA_SUPPORT +kmod-cfg80211 +@DRIVER_WEXT_SUPPORT +kmod-crypto-michael-mic @!TARGET_zynq
++  DEPENDS:=@PCI_SUPPORT||PCMCIA_SUPPORT +kmod-cfg80211 +@DRIVER_WEXT_SUPPORT +kmod-crypto-michael-mic
+   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intersil/orinoco/orinoco.ko
+   AUTOLOAD:=$(call AutoProbe,orinoco)
+ endef
+diff -uprN a/package/kernel/mac80211/marvell.mk b/package/kernel/mac80211/marvell.mk
+--- a/package/kernel/mac80211/marvell.mk	2022-08-14 16:19:59.273485000 +0800
++++ b/package/kernel/mac80211/marvell.mk	2022-09-12 17:18:11.000000000 +0800
+@@ -11,7 +11,7 @@ config-$(call config_package,mwifiex-sdi
+ 
+ define KernelPackage/libertas-usb
+   $(call KernelPackage/mac80211/Default)
+-  DEPENDS+= @USB_SUPPORT +kmod-cfg80211 +kmod-usb-core +kmod-lib80211 +@DRIVER_WEXT_SUPPORT @!TARGET_zynq +libertas-usb-firmware
++  DEPENDS+= @USB_SUPPORT +kmod-cfg80211 +kmod-usb-core +kmod-lib80211 +@DRIVER_WEXT_SUPPORT +libertas-usb-firmware
+   TITLE:=Marvell 88W8015 Wireless Driver
+   FILES:= \
+ 	$(PKG_BUILD_DIR)/drivers/net/wireless/marvell/libertas/libertas.ko \
+@@ -21,7 +21,7 @@ endef
+ 
+ define KernelPackage/libertas-sdio
+   $(call KernelPackage/mac80211/Default)
+-  DEPENDS+= +kmod-cfg80211 +kmod-lib80211 +kmod-mmc +@DRIVER_WEXT_SUPPORT @!(TARGET_uml||TARGET_zynq) +libertas-sdio-firmware
++  DEPENDS+= +kmod-cfg80211 +kmod-lib80211 +kmod-mmc +@DRIVER_WEXT_SUPPORT @!TARGET_uml +libertas-sdio-firmware
+   TITLE:=Marvell 88W8686 Wireless Driver
+   FILES:= \
+ 	$(PKG_BUILD_DIR)/drivers/net/wireless/marvell/libertas/libertas.ko \
+@@ -32,7 +32,7 @@ endef
+ define KernelPackage/libertas-spi
+   $(call KernelPackage/mac80211/Default)
+   SUBMENU:=Wireless Drivers
+-  DEPENDS+= +kmod-cfg80211 +kmod-lib80211 +@DRIVER_WEXT_SUPPORT @!(TARGET_uml||TARGET_zynq) +libertas-spi-firmware
++  DEPENDS+= +kmod-cfg80211 +kmod-lib80211 +@DRIVER_WEXT_SUPPORT @!TARGET_uml +libertas-spi-firmware
+   KCONFIG := \
+ 	CONFIG_SPI=y \
+ 	CONFIG_SPI_MASTER=y
+diff -uprN a/package/kernel/mac80211/patches/ath10k/120-ath10k-fetch-calibration-data-via-nvmem-subsystem.patch b/package/kernel/mac80211/patches/ath10k/120-ath10k-fetch-calibration-data-via-nvmem-subsystem.patch
+--- a/package/kernel/mac80211/patches/ath10k/120-ath10k-fetch-calibration-data-via-nvmem-subsystem.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/kernel/mac80211/patches/ath10k/120-ath10k-fetch-calibration-data-via-nvmem-subsystem.patch	2022-09-12 17:18:11.000000000 +0800
+@@ -0,0 +1,162 @@
++From e2333703373e8b81294da5d1c73c30154f75b082 Mon Sep 17 00:00:00 2001
++From: Christian Lamparter <chunkeey@gmail.com>
++Date: Fri, 15 Oct 2021 18:56:33 +0200
++Subject: [PATCH] ath10k: fetch (pre-)calibration data via nvmem subsystem
++
++On most embedded ath10k devices (like range extenders,
++routers, accesspoints, ...) the calibration data is
++stored in a easily accessible MTD partitions named
++"ART", "caldata", "calibration", etc...
++
++Since commit 4b361cfa8624 ("mtd: core: add OTP nvmem provider support"):
++MTD partitions and portions of them can be specified
++as potential nvmem-cells which are accessible through
++the nvmem subsystem.
++
++This feature - together with an nvmem cell definition either
++in the platform data or via device-tree allows drivers to get
++the (pre-)calibration data which is required for initializing
++the WIFI.
++
++Tested with Netgear EX6150v2 (IPQ4018)
++
++Cc: Robert Marko <robimarko@gmail.com>
++Cc: Thibaut Varene <hacks@slashdirt.org>
++Signed-off-by: Christian Lamparter <chunkeey@gmail.com>
++---
++--- a/drivers/net/wireless/ath/ath10k/core.c
+++++ b/drivers/net/wireless/ath/ath10k/core.c
++@@ -12,6 +12,7 @@
++ #include <linux/dmi.h>
++ #include <linux/ctype.h>
++ #include <linux/pm_qos.h>
+++#include <linux/nvmem-consumer.h>
++ #include <asm/byteorder.h>
++ 
++ #include "core.h"
++@@ -955,7 +956,8 @@ static int ath10k_core_get_board_id_from
++ 	}
++ 
++ 	if (ar->cal_mode == ATH10K_PRE_CAL_MODE_DT ||
++-	    ar->cal_mode == ATH10K_PRE_CAL_MODE_FILE)
+++	    ar->cal_mode == ATH10K_PRE_CAL_MODE_FILE ||
+++	    ar->cal_mode == ATH10K_PRE_CAL_MODE_NVMEM)
++ 		bmi_board_id_param = BMI_PARAM_GET_FLASH_BOARD_ID;
++ 	else
++ 		bmi_board_id_param = BMI_PARAM_GET_EEPROM_BOARD_ID;
++@@ -1757,7 +1759,8 @@ static int ath10k_download_and_run_otp(s
++ 
++ 	/* As of now pre-cal is valid for 10_4 variants */
++ 	if (ar->cal_mode == ATH10K_PRE_CAL_MODE_DT ||
++-	    ar->cal_mode == ATH10K_PRE_CAL_MODE_FILE)
+++	    ar->cal_mode == ATH10K_PRE_CAL_MODE_FILE ||
+++	    ar->cal_mode == ATH10K_PRE_CAL_MODE_NVMEM)
++ 		bmi_otp_exe_param = BMI_PARAM_FLASH_SECTION_ALL;
++ 
++ 	ret = ath10k_bmi_execute(ar, address, bmi_otp_exe_param, &result);
++@@ -1884,6 +1887,39 @@ out_free:
++ 	return ret;
++ }
++ 
+++static int ath10k_download_cal_nvmem(struct ath10k *ar, const char *cell_name)
+++{
+++	struct nvmem_cell *cell;
+++	void *buf;
+++	size_t len;
+++	int ret;
+++
+++	cell = devm_nvmem_cell_get(ar->dev, cell_name);
+++	if (IS_ERR(cell)) {
+++		ret = PTR_ERR(cell);
+++		return ret;
+++	}
+++
+++	buf = nvmem_cell_read(cell, &len);
+++	if (IS_ERR(buf))
+++		return PTR_ERR(buf);
+++
+++	if (ar->hw_params.cal_data_len != len) {
+++		kfree(buf);
+++		ath10k_warn(ar, "invalid calibration data length in nvmem-cell '%s': %zu != %u\n",
+++			    cell_name, len, ar->hw_params.cal_data_len);
+++		return -EMSGSIZE;
+++	}
+++
+++	ret = ath10k_download_board_data(ar, buf, len);
+++	kfree(buf);
+++	if (ret)
+++		ath10k_warn(ar, "failed to download calibration data from nvmem-cell '%s': %d\n",
+++			    cell_name, ret);
+++
+++	return ret;
+++}
+++
++ int ath10k_core_fetch_firmware_api_n(struct ath10k *ar, const char *name,
++ 				     struct ath10k_fw_file *fw_file)
++ {
++@@ -2118,6 +2154,18 @@ static int ath10k_core_pre_cal_download(
++ {
++ 	int ret;
++ 
+++	ret = ath10k_download_cal_nvmem(ar, "pre-calibration");
+++	if (ret == 0) {
+++		ar->cal_mode = ATH10K_PRE_CAL_MODE_NVMEM;
+++		goto success;
+++	} else if (ret == -EPROBE_DEFER) {
+++		return ret;
+++	}
+++
+++	ath10k_dbg(ar, ATH10K_DBG_BOOT,
+++		   "boot did not find a pre-calibration nvmem-cell, try file next: %d\n",
+++		   ret);
+++
++ 	ret = ath10k_download_cal_file(ar, ar->pre_cal_file);
++ 	if (ret == 0) {
++ 		ar->cal_mode = ATH10K_PRE_CAL_MODE_FILE;
++@@ -2184,6 +2232,18 @@ static int ath10k_download_cal_data(stru
++ 		   "pre cal download procedure failed, try cal file: %d\n",
++ 		   ret);
++ 
+++	ret = ath10k_download_cal_nvmem(ar, "calibration");
+++	if (ret == 0) {
+++		ar->cal_mode = ATH10K_CAL_MODE_NVMEM;
+++		goto done;
+++	} else if (ret == -EPROBE_DEFER) {
+++		return ret;
+++	}
+++
+++	ath10k_dbg(ar, ATH10K_DBG_BOOT,
+++		   "boot did not find a calibration nvmem-cell, try file next: %d\n",
+++		   ret);
+++
++ 	ret = ath10k_download_cal_file(ar, ar->cal_file);
++ 	if (ret == 0) {
++ 		ar->cal_mode = ATH10K_CAL_MODE_FILE;
++--- a/drivers/net/wireless/ath/ath10k/core.h
+++++ b/drivers/net/wireless/ath/ath10k/core.h
++@@ -877,8 +877,10 @@ enum ath10k_cal_mode {
++ 	ATH10K_CAL_MODE_FILE,
++ 	ATH10K_CAL_MODE_OTP,
++ 	ATH10K_CAL_MODE_DT,
+++	ATH10K_CAL_MODE_NVMEM,
++ 	ATH10K_PRE_CAL_MODE_FILE,
++ 	ATH10K_PRE_CAL_MODE_DT,
+++	ATH10K_PRE_CAL_MODE_NVMEM,
++ 	ATH10K_CAL_MODE_EEPROM,
++ };
++ 
++@@ -898,10 +900,14 @@ static inline const char *ath10k_cal_mod
++ 		return "otp";
++ 	case ATH10K_CAL_MODE_DT:
++ 		return "dt";
+++	case ATH10K_CAL_MODE_NVMEM:
+++		return "nvmem";
++ 	case ATH10K_PRE_CAL_MODE_FILE:
++ 		return "pre-cal-file";
++ 	case ATH10K_PRE_CAL_MODE_DT:
++ 		return "pre-cal-dt";
+++	case ATH10K_PRE_CAL_MODE_NVMEM:
+++		return "pre-cal-nvmem";
++ 	case ATH10K_CAL_MODE_EEPROM:
++ 		return "eeprom";
++ 	}
+diff -uprN a/package/kernel/mac80211/patches/ath10k/984-ath10k-Try-to-get-mac-address-from-dts.patch b/package/kernel/mac80211/patches/ath10k/984-ath10k-Try-to-get-mac-address-from-dts.patch
+--- a/package/kernel/mac80211/patches/ath10k/984-ath10k-Try-to-get-mac-address-from-dts.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/kernel/mac80211/patches/ath10k/984-ath10k-Try-to-get-mac-address-from-dts.patch	2022-09-12 17:18:11.000000000 +0800
+@@ -0,0 +1,37 @@
++From 22fb5991a44c78ff18ec0082dc90c809356eb893 Mon Sep 17 00:00:00 2001
++From: Ansuel Smith <ansuelsmth@gmail.com>
++Date: Sun, 27 Sep 2020 19:23:35 +0200
++Subject: [PATCH 1/2] ath10k: Try to get mac-address from dts
++
++Most of embedded device that have the ath10k wifi integrated store the
++mac-address in nvmem partitions. Try to fetch the mac-address using the
++standard 'of_get_mac_address' than in all the check also try to fetch the
++address using the nvmem api searching for a defined 'mac-address' cell.
++Mac-address defined in the dts have priority than any other address found.
++
++Tested-on: QCA9984 hw1.0 PCI 10.4
++
++Signed-off-by: Ansuel Smith <ansuelsmth@gmail.com>
++---
++ drivers/net/wireless/ath/ath10k/core.c | 10 ++++++++++
++ 1 file changed, 10 insertions(+)
++
++--- a/drivers/net/wireless/ath/ath10k/core.c
+++++ b/drivers/net/wireless/ath/ath10k/core.c
++@@ -8,6 +8,7 @@
++ #include <linux/module.h>
++ #include <linux/firmware.h>
++ #include <linux/of.h>
+++#include <linux/of_net.h>
++ #include <linux/property.h>
++ #include <linux/dmi.h>
++ #include <linux/ctype.h>
++@@ -3334,6 +3335,8 @@ static int ath10k_core_probe_fw(struct a
++ 
++ 	device_get_mac_address(ar->dev, ar->mac_addr, sizeof(ar->mac_addr));
++ 
+++	of_get_mac_address(ar->dev->of_node, ar->mac_addr);
+++
++ 	ret = ath10k_core_init_firmware_features(ar);
++ 	if (ret) {
++ 		ath10k_err(ar, "fatal problem with firmware features: %d\n",
+diff -uprN a/package/kernel/mac80211/patches/ath9k/600-v5.16-ath9k-fetch-calibration-data-via-nvmem-subsystem.patch b/package/kernel/mac80211/patches/ath9k/600-v5.16-ath9k-fetch-calibration-data-via-nvmem-subsystem.patch
+--- a/package/kernel/mac80211/patches/ath9k/600-v5.16-ath9k-fetch-calibration-data-via-nvmem-subsystem.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/kernel/mac80211/patches/ath9k/600-v5.16-ath9k-fetch-calibration-data-via-nvmem-subsystem.patch	2022-09-12 17:18:11.000000000 +0800
+@@ -0,0 +1,154 @@
++From dab16ef495dbb3cabb355b6c80f0771a4a25e35d Mon Sep 17 00:00:00 2001
++From: Christian Lamparter <chunkeey@gmail.com>
++Date: Fri, 20 Aug 2021 22:44:52 +0200
++Subject: [PATCH] ath9k: fetch calibration data via nvmem subsystem
++
++On most embedded ath9k devices (like range extenders,
++routers, accesspoints, ...) the calibration data is
++stored in a MTD partitions named "ART", or "caldata"/
++"calibration".
++
++Ever since commit
++4b361cfa8624 ("mtd: core: add OTP nvmem provider support")
++all MTD partitions are all automatically available through
++the nvmem subsystem. This allows drivers like ath9k to read
++the necessary data without needing any userspace helpers
++that would do this extraction.
++
++Signed-off-by: Christian Lamparter <chunkeey@gmail.com>
++---
++
++includes:
++
++From 57671351379b2051cfb07fc14e0bead9916a0880 Mon Sep 17 00:00:00 2001
++From: Dan Carpenter <dan.carpenter@oracle.com>
++Date: Mon, 11 Oct 2021 18:18:01 +0300
++Subject: ath9k: fix an IS_ERR() vs NULL check
++
++The devm_kmemdup() function doesn't return error pointers, it returns
++NULL on error.
++
++Fixes: eb3a97a69be8 ("ath9k: fetch calibration data via nvmem subsystem")
++Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
++Signed-off-by: Kalle Valo <kvalo@codeaurora.org>
++Link: https://lore.kernel.org/r/20211011123533.GA15188@kili
++
++---
++
++--- a/drivers/net/wireless/ath/ath9k/eeprom.c
+++++ b/drivers/net/wireless/ath/ath9k/eeprom.c
++@@ -135,13 +135,23 @@ static bool ath9k_hw_nvram_read_firmware
++ 					 offset, data);
++ }
++ 
+++static bool ath9k_hw_nvram_read_nvmem(struct ath_hw *ah, off_t offset,
+++				      u16 *data)
+++{
+++	return ath9k_hw_nvram_read_array(ah->nvmem_blob,
+++					 ah->nvmem_blob_len / sizeof(u16),
+++					 offset, data);
+++}
+++
++ bool ath9k_hw_nvram_read(struct ath_hw *ah, u32 off, u16 *data)
++ {
++ 	struct ath_common *common = ath9k_hw_common(ah);
++ 	struct ath9k_platform_data *pdata = ah->dev->platform_data;
++ 	bool ret;
++ 
++-	if (ah->eeprom_blob)
+++	if (ah->nvmem_blob)
+++		ret = ath9k_hw_nvram_read_nvmem(ah, off, data);
+++	else if (ah->eeprom_blob)
++ 		ret = ath9k_hw_nvram_read_firmware(ah->eeprom_blob, off, data);
++ 	else if (pdata && !pdata->use_eeprom)
++ 		ret = ath9k_hw_nvram_read_pdata(pdata, off, data);
++--- a/drivers/net/wireless/ath/ath9k/hw.h
+++++ b/drivers/net/wireless/ath/ath9k/hw.h
++@@ -988,6 +988,8 @@ struct ath_hw {
++ 	bool disable_5ghz;
++ 
++ 	const struct firmware *eeprom_blob;
+++	u16 *nvmem_blob;	/* devres managed */
+++	size_t nvmem_blob_len;
++ 
++ 	struct ath_dynack dynack;
++ 
++--- a/drivers/net/wireless/ath/ath9k/init.c
+++++ b/drivers/net/wireless/ath/ath9k/init.c
++@@ -22,6 +22,7 @@
++ #include <linux/module.h>
++ #include <linux/of.h>
++ #include <linux/of_net.h>
+++#include <linux/nvmem-consumer.h>
++ #include <linux/relay.h>
++ #include <linux/dmi.h>
++ #include <net/ieee80211_radiotap.h>
++@@ -568,6 +569,57 @@ static void ath9k_eeprom_release(struct
++ 	release_firmware(sc->sc_ah->eeprom_blob);
++ }
++ 
+++static int ath9k_nvmem_request_eeprom(struct ath_softc *sc)
+++{
+++	struct ath_hw *ah = sc->sc_ah;
+++	struct nvmem_cell *cell;
+++	void *buf;
+++	size_t len;
+++	int err;
+++
+++	cell = devm_nvmem_cell_get(sc->dev, "calibration");
+++	if (IS_ERR(cell)) {
+++		err = PTR_ERR(cell);
+++
+++		/* nvmem cell might not be defined, or the nvmem
+++		 * subsystem isn't included. In this case, follow
+++		 * the established "just return 0;" convention of
+++		 * ath9k_init_platform to say:
+++		 * "All good. Nothing to see here. Please go on."
+++		 */
+++		if (err == -ENOENT || err == -EOPNOTSUPP)
+++			return 0;
+++
+++		return err;
+++	}
+++
+++	buf = nvmem_cell_read(cell, &len);
+++	if (IS_ERR(buf))
+++		return PTR_ERR(buf);
+++
+++	/* run basic sanity checks on the returned nvram cell length.
+++	 * That length has to be a multiple of a "u16" (i.e.: & 1).
+++	 * Furthermore, it has to be more than "let's say" 512 bytes
+++	 * but less than the maximum of AR9300_EEPROM_SIZE (16kb).
+++	 */
+++	if (((len & 1) == 1) || (len < 512) || (len >= AR9300_EEPROM_SIZE)) {
+++		kfree(buf);
+++		return -EINVAL;
+++	}
+++
+++	/* devres manages the calibration values release on shutdown */
+++	ah->nvmem_blob = (u16 *)devm_kmemdup(sc->dev, buf, len, GFP_KERNEL);
+++	kfree(buf);
+++	if (!ah->nvmem_blob)
+++		return -ENOMEM;
+++
+++	ah->nvmem_blob_len = len;
+++	ah->ah_flags &= ~AH_USE_EEPROM;
+++	ah->ah_flags |= AH_NO_EEP_SWAP;
+++
+++	return 0;
+++}
+++
++ static int ath9k_init_platform(struct ath_softc *sc)
++ {
++ 	struct ath9k_platform_data *pdata = sc->dev->platform_data;
++@@ -710,6 +762,10 @@ static int ath9k_init_softc(u16 devid, s
++ 	if (ret)
++ 		return ret;
++ 
+++	ret = ath9k_nvmem_request_eeprom(sc);
+++	if (ret)
+++		return ret;
+++
++ 	if (ath9k_led_active_high != -1)
++ 		ah->config.led_active_high = ath9k_led_active_high == 1;
++ 
+diff -uprN a/package/kernel/mac80211/patches/ath9k/601-v5.16-ath9k-owl-loader-fetch-pci-init-values-through-nvmem.patch b/package/kernel/mac80211/patches/ath9k/601-v5.16-ath9k-owl-loader-fetch-pci-init-values-through-nvmem.patch
+--- a/package/kernel/mac80211/patches/ath9k/601-v5.16-ath9k-owl-loader-fetch-pci-init-values-through-nvmem.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/kernel/mac80211/patches/ath9k/601-v5.16-ath9k-owl-loader-fetch-pci-init-values-through-nvmem.patch	2022-09-12 17:18:11.000000000 +0800
+@@ -0,0 +1,181 @@
++From 9bf31835f11aa3c4fe5a9c1f7462c199c5d8e7ca Mon Sep 17 00:00:00 2001
++From: Christian Lamparter <chunkeey@gmail.com>
++Date: Sat, 21 Aug 2021 00:22:39 +0200
++Subject: [PATCH] ath9k: owl-loader: fetch pci init values through nvmem
++
++extends the owl loader to fetch important pci initialization
++values - which are stored together with the calibration data -
++through the nvmem subsystem.
++
++This allows for much faster WIFI/ath9k initializations on devices
++that do not require to perform any post-processing (like XOR'ing/
++reversal or unpacking) since no userspace helper is required.
++
++Signed-off-by: Christian Lamparter <chunkeey@gmail.com>
++---
++ .../wireless/ath/ath9k/ath9k_pci_owl_loader.c | 105 +++++++++++++-----
++ 1 file changed, 76 insertions(+), 29 deletions(-)
++
++--- a/drivers/net/wireless/ath/ath9k/ath9k_pci_owl_loader.c
+++++ b/drivers/net/wireless/ath/ath9k/ath9k_pci_owl_loader.c
++@@ -19,9 +19,14 @@
++ #include <linux/delay.h>
++ #include <linux/platform_device.h>
++ #include <linux/ath9k_platform.h>
+++#include <linux/nvmem-consumer.h>
+++#include <linux/workqueue.h>
++ 
++ struct owl_ctx {
+++	struct pci_dev *pdev;
++ 	struct completion eeprom_load;
+++	struct work_struct work;
+++	struct nvmem_cell *cell;
++ };
++ 
++ #define EEPROM_FILENAME_LEN 100
++@@ -42,6 +47,12 @@ static int ath9k_pci_fixup(struct pci_de
++ 	u32 bar0;
++ 	bool swap_needed = false;
++ 
+++	/* also note that we are doing *u16 operations on the file */
+++	if (cal_len > 4096 || cal_len < 0x200 || (cal_len & 1) == 1) {
+++		dev_err(&pdev->dev, "eeprom has an invalid size.\n");
+++		return -EINVAL;
+++	}
+++
++ 	if (*cal_data != AR5416_EEPROM_MAGIC) {
++ 		if (*cal_data != swab16(AR5416_EEPROM_MAGIC)) {
++ 			dev_err(&pdev->dev, "invalid calibration data\n");
++@@ -99,38 +110,31 @@ static int ath9k_pci_fixup(struct pci_de
++ 	return 0;
++ }
++ 
++-static void owl_fw_cb(const struct firmware *fw, void *context)
+++static void owl_rescan(struct pci_dev *pdev)
++ {
++-	struct pci_dev *pdev = (struct pci_dev *)context;
++-	struct owl_ctx *ctx = (struct owl_ctx *)pci_get_drvdata(pdev);
++-	struct pci_bus *bus;
++-
++-	complete(&ctx->eeprom_load);
++-
++-	if (!fw) {
++-		dev_err(&pdev->dev, "no eeprom data received.\n");
++-		goto release;
++-	}
++-
++-	/* also note that we are doing *u16 operations on the file */
++-	if (fw->size > 4096 || fw->size < 0x200 || (fw->size & 1) == 1) {
++-		dev_err(&pdev->dev, "eeprom file has an invalid size.\n");
++-		goto release;
++-	}
++-
++-	if (ath9k_pci_fixup(pdev, (const u16 *)fw->data, fw->size))
++-		goto release;
+++	struct pci_bus *bus = pdev->bus;
++ 
++ 	pci_lock_rescan_remove();
++-	bus = pdev->bus;
++ 	pci_stop_and_remove_bus_device(pdev);
++ 	/* the device should come back with the proper
++ 	 * ProductId. But we have to initiate a rescan.
++ 	 */
++ 	pci_rescan_bus(bus);
++ 	pci_unlock_rescan_remove();
+++}
+++
+++static void owl_fw_cb(const struct firmware *fw, void *context)
+++{
+++	struct owl_ctx *ctx = (struct owl_ctx *)context;
+++
+++	complete(&ctx->eeprom_load);
++ 
++-release:
+++	if (fw) {
+++		ath9k_pci_fixup(ctx->pdev, (const u16 *)fw->data, fw->size);
+++		owl_rescan(ctx->pdev);
+++	} else {
+++		dev_err(&ctx->pdev->dev, "no eeprom data received.\n");
+++	}
++ 	release_firmware(fw);
++ }
++ 
++@@ -152,6 +156,43 @@ static const char *owl_get_eeprom_name(s
++ 	return eeprom_name;
++ }
++ 
+++static void owl_nvmem_work(struct work_struct *work)
+++{
+++	struct owl_ctx *ctx = container_of(work, struct owl_ctx, work);
+++	void *buf;
+++	size_t len;
+++
+++	complete(&ctx->eeprom_load);
+++
+++	buf = nvmem_cell_read(ctx->cell, &len);
+++	if (!IS_ERR(buf)) {
+++		ath9k_pci_fixup(ctx->pdev, buf, len);
+++		kfree(buf);
+++		owl_rescan(ctx->pdev);
+++	} else {
+++		dev_err(&ctx->pdev->dev, "no nvmem data received.\n");
+++	}
+++}
+++
+++static int owl_nvmem_probe(struct owl_ctx *ctx)
+++{
+++	int err;
+++
+++	ctx->cell = devm_nvmem_cell_get(&ctx->pdev->dev, "calibration");
+++	if (IS_ERR(ctx->cell)) {
+++		err = PTR_ERR(ctx->cell);
+++		if (err == -ENOENT || err == -EOPNOTSUPP)
+++			return 1; /* not present, try firmware_request */
+++
+++		return err;
+++	}
+++
+++	INIT_WORK(&ctx->work, owl_nvmem_work);
+++	schedule_work(&ctx->work);
+++
+++	return 0;
+++}
+++
++ static int owl_probe(struct pci_dev *pdev,
++ 		     const struct pci_device_id *id)
++ {
++@@ -164,21 +205,27 @@ static int owl_probe(struct pci_dev *pde
++ 
++ 	pcim_pin_device(pdev);
++ 
++-	eeprom_name = owl_get_eeprom_name(pdev);
++-	if (!eeprom_name) {
++-		dev_err(&pdev->dev, "no eeprom filename found.\n");
++-		return -ENODEV;
++-	}
++-
++ 	ctx = devm_kzalloc(&pdev->dev, sizeof(*ctx), GFP_KERNEL);
++ 	if (!ctx)
++ 		return -ENOMEM;
++ 
++ 	init_completion(&ctx->eeprom_load);
+++	ctx->pdev = pdev;
++ 
++ 	pci_set_drvdata(pdev, ctx);
+++
+++	err = owl_nvmem_probe(ctx);
+++	if (err <= 0)
+++		return err;
+++
+++	eeprom_name = owl_get_eeprom_name(pdev);
+++	if (!eeprom_name) {
+++		dev_err(&pdev->dev, "no eeprom filename found.\n");
+++		return -ENODEV;
+++	}
+++
++ 	err = request_firmware_nowait(THIS_MODULE, true, eeprom_name,
++-				      &pdev->dev, GFP_KERNEL, pdev, owl_fw_cb);
+++				      &pdev->dev, GFP_KERNEL, ctx, owl_fw_cb);
++ 	if (err)
++ 		dev_err(&pdev->dev, "failed to request caldata (%d).\n", err);
++ 
+diff -uprN a/package/kernel/mac80211/patches/subsys/782-net-next-1-of-net-pass-the-dst-buffer-to-of_get_mac_address.patch b/package/kernel/mac80211/patches/subsys/782-net-next-1-of-net-pass-the-dst-buffer-to-of_get_mac_address.patch
+--- a/package/kernel/mac80211/patches/subsys/782-net-next-1-of-net-pass-the-dst-buffer-to-of_get_mac_address.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/kernel/mac80211/patches/subsys/782-net-next-1-of-net-pass-the-dst-buffer-to-of_get_mac_address.patch	2022-09-12 17:18:11.000000000 +0800
+@@ -0,0 +1,29 @@
++--- a/backport-include/linux/of_net.h
+++++ /dev/null
++@@ -1,26 +0,0 @@
++-#ifndef _BP_OF_NET_H
++-#define _BP_OF_NET_H
++-#include_next <linux/of_net.h>
++-#include <linux/version.h>
++-#include <linux/etherdevice.h>
++-
++-/* The behavior of of_get_mac_address() changed in kernel 5.2, it now
++- * returns an error code and not NULL in case of an error.
++- */
++-#if LINUX_VERSION_IS_LESS(5,13,0)
++-static inline int backport_of_get_mac_address(struct device_node *np, u8 *mac_out)
++-{
++-	const void *mac = of_get_mac_address(np);
++-
++-	if (!mac)
++-		return -ENODEV;
++-	if (IS_ERR(mac))
++-		return PTR_ERR(mac);
++-	ether_addr_copy(mac_out, mac);
++-	
++-	return 0;
++-}
++-#define of_get_mac_address LINUX_BACKPORT(of_get_mac_address)
++-#endif /* < 5.2 */
++-
++-#endif /* _BP_OF_NET_H */

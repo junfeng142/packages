@@ -78,7 +78,7 @@
 ++                read-only;
 ++            };
 ++
-++            rootfs:partition@380000 {
+++            rootfs:partition@3b0000 {
 ++                label = "rootfs";
 ++                reg = <0x3B0000 0xC50000>;
 ++            };

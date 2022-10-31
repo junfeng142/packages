@@ -1,0 +1,89 @@
+msgid "Alist"
+msgstr "Alist 文件列表"
+
+msgid "Running state"
+msgstr "运行状态"
+
+msgid "Open Web Interface"
+msgstr "打开 Web 界面"
+
+msgid "A file list program that supports multiple storage."
+msgstr "一款支持多种存储的目录文件列表程序。"
+
+msgid "Server Settings"
+msgstr "服务器设置"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Adress Type"
+msgstr "监听地址"
+
+msgid "Listen LAN Address"
+msgstr "监听LAN侧地址"
+
+msgid "Listen WAN And LAN Address"
+msgstr "监听所有地址"
+
+msgid "Listen Port"
+msgstr "端口"
+
+msgid "Enable SSL"
+msgstr "启用 SSL"
+
+msgid "SSL cert"
+msgstr "SSL 证书"
+
+msgid "SSL certificate file path"
+msgstr "SSL 证书文件路径"
+
+msgid "SSL key"
+msgstr "SSL 密钥"
+
+msgid "SSL key file path"
+msgstr "SSL 密钥文件路径"
+
+msgid "Cache directory"
+msgstr "缓存目录"
+
+msgid "RUNNING"
+msgstr "运行中"
+
+msgid "NOT RUNNING"
+msgstr "未运行"
+
+msgid "Collecting data..."
+msgstr "收集数据..."
+
+msgid "Open Web-URL"
+msgstr "打开管理界面"
+
+msgid "NAS"
+msgstr "网络存储"
+
+msgid "User Manual"
+msgstr "用户手册"
+
+msgid "Advanced Settings"
+msgstr "高级设置"
+
+msgid "Project storage directory"
+msgstr "项目存放路径"
+
+msgid "Update binary files manually"
+msgstr "手动更新二进制文件"
+
+msgid "Choose local file:"
+msgstr "选择本地文件："
+
+msgid "Create upload file error."
+msgstr "创建上传文件错误。"
+
+msgid "The uploaded file is invalid."
+msgstr "上传的文件无效。"
+
+msgid "File saved to"
+msgstr "文件保存到"
+
+msgid "Enable Logs"
+msgstr "启用日志"

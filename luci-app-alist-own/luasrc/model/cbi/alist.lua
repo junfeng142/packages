@@ -32,15 +32,14 @@ o.datatype = "port"
 o.default = 5244
 o.rmempty = false
 
-o = s:taboption("server", Value, "ssl")
+o = s:taboption("server", Flag, "ssl")
 o.title = translate("Enable SSL")
-o.default = 0
 o.rmempty = false
 
 o = s:taboption("server", Value, "ssl_cert")
 o.title = translate("SSL cert")
 o.datatype = "file"
-o.depends("ssl", "1")
+o:depends("ssl", "1")
 o.description = translate("SSL certificate file path")
 
 o = s:taboption("server", Value, "ssl_key")
@@ -55,21 +54,19 @@ o.datatype = "string"
 o.default = "/tmp/alist"
 o.rmempty = false
 
-s:tab("advance", translate("Advanced Settings"))
-
-o = s:taboption("advance", DummyValue, "")
+o = s:taboption("server", DummyValue, "")
 o.title = "<p style=\"font-size:18px;font-weight:bold\">" .. translate("Update binary files manually") .. "</p>"
 
-o = s:taboption("advance", Value, "project_path")
+o = s:taboption("server", Value, "project_path")
 o.title = translate("Project storage directory")
 o.default = "/usr/bin"
 o.rmempty = false
 
-o = s:taboption("advance", FileUpload, "_upload")
+o = s:taboption("server", FileUpload, "_upload")
 o.title = translate("Choose local file:")
 o.template = "alist/upload"
 
-um = s:taboption("advance", DummyValue, "")
+um = s:taboption("server", DummyValue, "")
 um.template = "alist/tip"
 
 local fd
@@ -112,6 +109,8 @@ http.setfilehandler(
 		end
 	end
 )
+
+s:tab("advance", translate("Advanced Settings"))
 
 o = s:taboption("advance", Flag, "log")
 o.title = translate("Enable Logs")

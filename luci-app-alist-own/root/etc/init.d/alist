@@ -1,21 +1,29 @@
 #!/bin/sh /etc/rc.common
+# Copyright (C) 2019 [CTCGFW] Project OpenWRT
 
 START=99
 USE_PROCD=1
+
+CONFIG="alist"
+
+config_t_get() {
+	local index=0
+	[ -n "$4" ] && index=$4
+	local ret=$(uci get $CONFIG.@$1[$index].$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+ENABLED=$(config_t_get alist enable)
+ADDRTYPE=$(config_t_get alist addrtype)
+PORT=$(config_t_get alist port)
+SSL_EN=$(config_t_get alist ssl)
+CERTDIR=$(config_t_get alist ssl_cert)
+KEYDIR=$(config_t_get alist ssl_key)
+TMPDIR=$(config_t_get alist temp_dir)
+LOG_EN=$(config_t_get alist log)
 PROGDIR=$(echo -n $(uci get alist.@alist[0].project_path) | sed 's/\/$//')
 PROG="$PROJDIR/alist"
-CONFIG="$PROJDIR/config.json"
-ADDRTYPE=$(uci get alist.@alist[0].addrtype)
-
-get_config() {
-	config_get_bool enabled $1 enabled 1
-	config_get port $1 port 5244
-	config_get log $1 log 1
-	config_get temp_dir $1 temp_dir "/tmp/alist"
-	config_get ssl $1 ssl 0
-	config_get ssl_cert $1 ssl_cert ""
-	config_get ssl_key $1 ssl_key ""
-}
+CONFIG="$PROJDIR/alist.json"
 
 set_firewall() {
 	if [ "$external_access" = "allow" ]; then
@@ -25,7 +33,7 @@ set_firewall() {
 		uci set firewall.alist.target="ACCEPT"
 		uci set firewall.alist.src="wan"
 		uci set firewall.alist.proto="tcp"
-		uci set firewall.alist.dest_port="$port"
+		uci set firewall.alist.dest_port="$PORT"
 		uci set firewall.alist.enabled="1"
 		uci commit firewall
 		/etc/init.d/firewall reload >/dev/null 2>&1
@@ -37,20 +45,8 @@ set_firewall() {
 }
 
 start_service() {
-	config_load alist
-	config_foreach get_config alist
-	[ $enabled != 1 ] && return 1
-	mkdir -p $temp_dir
-	if [ "$ssl" -eq 1 ];then
-		SSL=true
-	else
-		SSL=false
-	fi
-	if [ "$log" -eq 1 ];then
-		LOG=true
-	else
-		LOG=false
-	fi
+	[ $ENABLED != 1 ] && return 1
+	mkdir -p $TMPDIR
 	if [ "$ADDRTYPE" == "lan" ];then
 		listen_addr="$(uci get network.lan.ipaddr)"
 		external_access="deny"
@@ -59,9 +55,42 @@ start_service() {
 		external_access="allow"
 	fi
 	set_firewall
-	cat /dev/null > $temp_dir/alist.log
+	cat /dev/null > $TMPDIR/alist.log
 	cat > $CONFIG <<EOF
-{"force":false,"address":"$listen_addr","port":$port,"jwt_secret":"","cdn":"","database":{"type":"sqlite3","host":"","port":0,"user":"","password":"","name":"","db_file":"$PROGDIR/data.db","table_prefix":"x_","ssl_mode":""},"scheme":{"https":$SSL,"cert_file":"$ssl_cert","key_file":"$ssl_key"},"temp_dir":"$temp_dir","log":{"enable":$LOG,"name":"$temp_dir/alist.log","max_size":10,"max_backups":5,"max_age":28,"compress":false}}
+{
+  "force": false,
+  "address": "$listen_addr",
+  "port": $PORT,
+  "jwt_secret": "random generated",
+  "token_expires_in": 48,
+  "site_url": "",
+  "cdn": "",
+  "database": {
+    "type": "sqlite3",
+    "host": "",
+    "port": 0,
+    "user": "",
+    "password": "",
+    "name": "",
+    "db_file": "$PROGDIR/alist.db",
+    "table_prefix": "x_",
+    "ssl_mode": ""
+  },
+  "scheme": {
+    "https": $SSL_EN,
+    "cert_file": "$CERTDIR",
+    "key_file": "$KEYDIR"
+  },
+  "temp_dir": "$TMPDIR",
+  "log": {
+    "enable": $LOG_EN,
+    "name": "$TMPDIR/alist.log",
+    "max_size": 10,
+    "max_backups": 5,
+    "max_age": 28,
+    "compress": false
+  }
+}
 EOF
 	procd_open_instance alist
 	procd_set_param command $PROG

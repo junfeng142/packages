@@ -5,5 +5,5 @@ config filebrowser
 	option root_path '/'
 	option admin 'admin'
 	option password 'admin'
-	option project_path '/usr/bin'
+	option project_path '/tmp'
 	option Enabled 'true'

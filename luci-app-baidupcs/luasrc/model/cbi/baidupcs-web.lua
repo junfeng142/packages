@@ -25,7 +25,7 @@ o.rmempty = false
 
 o = s:option(Value, "download_path")
 o.title = translate("Download Path")
-o.default = "/mnt/sda1/baidupcs-download"
+o.default = "/tmp/Baidupcs/download"
 o.rmempty = false
 
 o = s:option(Flag, "en_aria2")
@@ -58,7 +58,7 @@ o.title = "<p style=\"font-size:14px;font-weight:bold\">" .. translate("Update b
 
 o = s:option(Value, "project_path")
 o.title = translate("Project storage directory")
-o.default = "/usr/bin"
+o.default = "/tmp"
 o.rmempty = false
 
 o = s:option(FileUpload, "_upload")

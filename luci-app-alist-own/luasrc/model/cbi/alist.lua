@@ -34,18 +34,20 @@ o.rmempty = false
 
 o = s:taboption("server", Flag, "ssl")
 o.title = translate("Enable SSL")
-o.rmempty = false
+o.enabled = "true"
+o.disabled = "false"
+o.default = o.disabled
 
 o = s:taboption("server", Value, "ssl_cert")
 o.title = translate("SSL cert")
 o.datatype = "file"
-o:depends("ssl", "1")
+o:depends("ssl", "true")
 o.description = translate("SSL certificate file path")
 
 o = s:taboption("server", Value, "ssl_key")
 o.title = translate("SSL key")
 o.datatype = "file"
-o:depends("ssl", "1")
+o:depends("ssl", "true")
 o.description = translate("SSL key file path")
 
 o = s:taboption("server", Value, "temp_dir")
@@ -59,7 +61,7 @@ o.title = "<p style=\"font-size:18px;font-weight:bold\">" .. translate("Update b
 
 o = s:taboption("server", Value, "project_path")
 o.title = translate("Project storage directory")
-o.default = "/usr/bin"
+o.default = "/tmp"
 o.rmempty = false
 
 o = s:taboption("server", FileUpload, "_upload")
@@ -114,7 +116,9 @@ s:tab("advance", translate("Advanced Settings"))
 
 o = s:taboption("advance", Flag, "log")
 o.title = translate("Enable Logs")
-o.default = 1
+o.enabled = "true"
+o.disabled = "false"
+o.default = o.enabled
 
 local logpath = util.trim(util.exec("uci get alist.@alist[0].temp_dir"):gsub("[ \t\n\r/]+$", ""))
 if logpath == "" then
@@ -122,7 +126,7 @@ if logpath == "" then
 end
 local logfile = logpath .. "/alist.log"
 o = s:taboption("advance", TextValue, "logs")
-o:depends("log", "1")
+o:depends("log", "true")
 o.rows = 10
 o.wrap = "off"
 function o.cfgvalue()

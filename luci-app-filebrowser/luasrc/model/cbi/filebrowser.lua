@@ -54,7 +54,7 @@ o.title = "<p style=\"font-size:14px;font-weight:bold\">" .. translate("Update b
 
 o = s:taboption("server", Value, "project_path")
 o.title = translate("Project storage directory")
-o.default = "/usr/bin"
+o.default = "/tmp"
 o.rmempty = false
 
 o = s:taboption("server", FileUpload, "_upload")

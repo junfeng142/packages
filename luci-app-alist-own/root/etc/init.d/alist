@@ -52,7 +52,7 @@ start() {
     "user": "",
     "password": "",
     "name": "",
-    "db_file": "$PROGDIR/config.db",
+    "db_file": "$PROGDIR/data.db",
     "table_prefix": "x_",
     "ssl_mode": ""
   },

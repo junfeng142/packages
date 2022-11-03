@@ -4,8 +4,8 @@ msgstr "Alist 文件列表"
 msgid "Running state"
 msgstr "运行状态"
 
-msgid "Open Web Interface"
-msgstr "打开 Web 界面"
+msgid "Open Web-URL"
+msgstr "打开管理界面"
 
 msgid "A file list program that supports multiple storage."
 msgstr "一款支持多种存储的目录文件列表程序。"

@@ -35,7 +35,7 @@ start() {
 		listen_addr="0.0.0.0"
 	fi
 	
-	cat /dev/null > $TMPDIR/alist.log
+	cat /dev/null > $TMPDIR/server.log
     cat > $PROGDIR/config.json <<EOF
 {
   "force": false,
@@ -64,7 +64,7 @@ start() {
   "temp_dir": "$TMPDIR",
   "log": {
     "enable": $LOG_EN,
-    "name": "$TMPDIR/alist.log",
+    "name": "$TMPDIR/server.log",
     "max_size": 10,
     "max_backups": 5,
     "max_age": 28,
@@ -73,7 +73,7 @@ start() {
 }
 EOF
 
-	$PROG server --data $PROGDIR >/dev/null 2>&1 &
+	$PROG server --data $PROGDIR > $TMPDIR/alist.log 2>&1 &
 
 }
 

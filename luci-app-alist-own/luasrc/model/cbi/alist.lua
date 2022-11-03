@@ -37,6 +37,7 @@ o.title = translate("Enable SSL")
 o.enabled = "true"
 o.disabled = "false"
 o.default = o.disabled
+o.rmempty = false
 
 o = s:taboption("server", Value, "ssl_cert")
 o.title = translate("SSL cert")
@@ -119,6 +120,7 @@ o.title = translate("Enable Logs")
 o.enabled = "true"
 o.disabled = "false"
 o.default = o.enabled
+o.rmempty = false
 
 local logpath = util.trim(util.exec("uci get alist.@alist[0].temp_dir"):gsub("[ \t\n\r/]+$", ""))
 if logpath == "" then

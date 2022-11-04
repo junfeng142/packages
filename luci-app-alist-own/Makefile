@@ -12,11 +12,6 @@ PKG_RELEASE:=1
 LUCI_TITLE:=LuCI support for alist
 LUCI_DEPENDS:=+luci-compat
 
-define Package/$(PKG_NAME)/postinst
-#!/bin/sh
-rm -fr /tmp/luci-indexcache /tmp/luci-modulecache
-endef
-
 include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature

@@ -14,10 +14,7 @@ LUCI_DEPENDS:=+luci-compat
 
 define Package/$(PKG_NAME)/postinst
 #!/bin/sh
-[ -n "${IPKG_INSTROOT}" ] || {
-	( . /etc/uci-defaults/luci-alist ) && rm -f /etc/uci-defaults/luci-alist
-	exit 0
-}
+rm -fr /tmp/luci-indexcache /tmp/luci-modulecache
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk

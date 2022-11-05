@@ -1,5 +1,5 @@
 msgid "Alist"
-msgstr "Alist 文件列表"
+msgstr "网盘文件列表"
 
 msgid "Running state"
 msgstr "运行状态"

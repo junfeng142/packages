@@ -122,14 +122,10 @@ o.disabled = "false"
 o.default = o.enabled
 o.rmempty = false
 
-local logpath = util.trim(util.exec("uci get alist.@alist[0].temp_dir"):gsub("[ \t\n\r/]+$", ""))
-if logpath == "" then
-    logpath = "/tmp/alist"
-end
-local logfile = logpath .. "/alist.log"
+local logfile = "/tmp/alist/alist.log"
 o = s:taboption("advance", TextValue, "logs")
 o:depends("log", "true")
-o.rows = 10
+o.rows = 18
 o.wrap = "off"
 function o.cfgvalue()
 	local logs = luci.util.execi("cat "..logfile)
@@ -142,3 +138,4 @@ end
 o.readonly="readonly"
 
 return m
+

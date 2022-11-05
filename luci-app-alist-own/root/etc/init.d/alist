@@ -36,6 +36,7 @@ start() {
 	fi
 	
 	cat /dev/null > $TMPDIR/server.log
+    cat /dev/null > $TMPDIR/alist.log
     cat > $PROGDIR/config.json <<EOF
 {
   "force": false,
@@ -73,7 +74,7 @@ start() {
 }
 EOF
 
-	$PROG server --data $PROGDIR > $TMPDIR/alist.log 2>&1 &
+	$PROG server --data $PROGDIR >> $TMPDIR/alist.log 2>&1 &
 
 }
 
@@ -83,6 +84,6 @@ stop() {
 
 restart() {
 	stop
-    sleep 2
+    sleep 1
     start
 }

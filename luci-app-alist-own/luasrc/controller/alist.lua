@@ -5,8 +5,7 @@ function index()
 		return
     end
 
-    entry({"admin", "nas"}, firstchild(), "NAS", 44).dependent = false
-    entry({"admin", "nas", "alist"}, cbi("alist"), _("Alist"), 210).dependent = true
+    entry({"admin", "nas", "alist"}, cbi("alist"), _("Alist"), 250).dependent = true
     entry({"admin", "nas", "alist", "status"}, call("act_status")).leaf = true
 end
 

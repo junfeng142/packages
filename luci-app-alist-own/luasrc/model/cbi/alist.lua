@@ -32,7 +32,7 @@ o.datatype = "port"
 o.default = 5244
 o.rmempty = false
 
-o = s:taboption("server", Value, "ssl")
+o = s:taboption("server", Flag, "ssl")
 o.title = translate("Enable SSL")
 o.enabled = "true"
 o.disabled = "false"

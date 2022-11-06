@@ -3,6 +3,6 @@ config alist
 	option addrtype 'lan'
 	option port '5244'
 	option ssl 'false'
-	option temp_dir '/tmp/alist'
+	option temp_dir '/tmp/Alist'
 	option project_path '/tmp'
 	option loged 'true'

@@ -1,5 +1,5 @@
 msgid "Alist"
-msgstr "网盘列表"
+msgstr "网盘文件列表"
 
 msgid "A file list program that supports multiple storage."
 msgstr "一款支持多种网络存储的目录文件列表程序。"

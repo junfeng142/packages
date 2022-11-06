@@ -54,7 +54,7 @@ o.description = translate("SSL key file path")
 o = s:taboption("server", Value, "temp_dir")
 o.title = translate("Cache directory")
 o.datatype = "string"
-o.default = "/tmp/alist"
+o.default = "/tmp/Alist"
 o.rmempty = false
 
 o = s:taboption("server", DummyValue, "")
@@ -120,9 +120,10 @@ o.title = translate("Enable Log")
 o.enabled = "true"
 o.disabled = "false"
 o.default = o.enabled
+o.rmempty = false
 o.description = translate("Start and run information document for alist.")
 
-local logfile = "/tmp/alist/alist.log"
+local logfile = "/tmp/Alist/alist.log"
 o = s:taboption("log", TextValue, "logs")
 o:depends("loged", "true")
 o.rows = 18

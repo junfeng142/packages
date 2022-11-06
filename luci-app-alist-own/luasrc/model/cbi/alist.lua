@@ -5,7 +5,7 @@ local util = require "luci.util"
 local http = luci.http
 
 m = Map("alist")
-m.title	= translate("alist")
+m.title	= translate("Alist")
 m:section(SimpleSection).template = "alist/alist_status"
 m.description = translate("A file list program that supports multiple storage.") .. "<br/>" .. [[<a href="https://alist.nn.ci/zh/guide/drivers/local.html" target="_blank">]] .. translate("User Manual") .. [[</a>]]
 

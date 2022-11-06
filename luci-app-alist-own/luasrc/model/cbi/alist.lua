@@ -122,7 +122,7 @@ o.disabled = "false"
 o.default = o.enabled
 o.description = translate("Start and run information document for alist.")
 
-local logfile = "/tmp/alist.log"
+local logfile = "/tmp/alist/alist.log"
 o = s:taboption("log", TextValue, "logs")
 o:depends("loged", "true")
 o.rows = 18

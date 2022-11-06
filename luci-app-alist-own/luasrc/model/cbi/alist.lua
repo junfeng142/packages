@@ -5,8 +5,8 @@ local util = require "luci.util"
 local http = luci.http
 
 m = Map("alist")
-m.title	= translate("Alist")
-m:section(SimpleSection).template = "alist/status"
+m.title	= translate("alist")
+m:section(SimpleSection).template = "alist/alist_status"
 m.description = translate("A file list program that supports multiple storage.") .. "<br/>" .. [[<a href="https://alist.nn.ci/zh/guide/drivers/local.html" target="_blank">]] .. translate("User Manual") .. [[</a>]]
 
 s = m:section(TypedSection, "alist")
@@ -32,7 +32,7 @@ o.datatype = "port"
 o.default = 5244
 o.rmempty = false
 
-o = s:taboption("server", Flag, "ssl")
+o = s:taboption("server", Value, "ssl")
 o.title = translate("Enable SSL")
 o.enabled = "true"
 o.disabled = "false"
@@ -58,7 +58,7 @@ o.default = "/tmp/alist"
 o.rmempty = false
 
 o = s:taboption("server", DummyValue, "")
-o.title = "<p style=\"font-size:18px;font-weight:bold\">" .. translate("Update binary files manually") .. "</p>"
+o.title = "<p style=\"font-size:14px;font-weight:bold\">" .. translate("Update binary files manually") .. "</p>"
 
 o = s:taboption("server", Value, "project_path")
 o.title = translate("Project storage directory")
@@ -78,7 +78,7 @@ local dpath = dir .. "/alist"
 local tempath = "/tmp/alist-tmp/"
 local filepath = ""
 
-fs.mkdir(dir)
+sys.call("/bin/mkdir -p '".. dir .."'")
 fs.mkdir(tempath)
 http.setfilehandler(
 	function(meta, chunk, eof)
@@ -108,23 +108,23 @@ http.setfilehandler(
 				sys.exec("/bin/chmod 755 '".. dpath .."'")
 				um.value = translate("File saved to") .. '"' .. dpath .. '"'
 				sys.call("/bin/rm -rf '".. tempath .."'")
-			end		
+			end	
 		end
 	end
 )
 
-s:tab("advance", translate("Advanced Settings"))
+s:tab("log", translate("Log"))
 
-o = s:taboption("advance", Flag, "log")
-o.title = translate("Enable Logs")
+o = s:taboption("log", Flag, "loged")
+o.title = translate("Enable Log")
 o.enabled = "true"
 o.disabled = "false"
 o.default = o.enabled
-o.rmempty = false
+o.description = translate("Start and run information document for alist.")
 
-local logfile = "/tmp/alist/alist.log"
-o = s:taboption("advance", TextValue, "logs")
-o:depends("log", "true")
+local logfile = "/tmp/alist.log"
+o = s:taboption("log", TextValue, "logs")
+o:depends("loged", "true")
 o.rows = 18
 o.wrap = "off"
 function o.cfgvalue()
@@ -138,4 +138,3 @@ end
 o.readonly="readonly"
 
 return m
-

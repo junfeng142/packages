@@ -7,8 +7,8 @@
 
 include $(TOPDIR)/rules.mk
 
-GO_VERSION_MAJOR_MINOR:=1.17
-GO_VERSION_PATCH:=1
+GO_VERSION_MAJOR_MINOR:=1.19
+GO_VERSION_PATCH:=2
 
 PKG_NAME:=golang
 PKG_VERSION:=$(GO_VERSION_MAJOR_MINOR)$(if $(GO_VERSION_PATCH),.$(GO_VERSION_PATCH))
@@ -20,7 +20,7 @@ GO_SOURCE_URLS:=https://dl.google.com/go/ \
 
 PKG_SOURCE:=go$(PKG_VERSION).src.tar.gz
 PKG_SOURCE_URL:=$(GO_SOURCE_URLS)
-PKG_HASH:=49dc08339770acd5613312db8c141eaf61779995577b89d93b541ef83067e5b1
+PKG_HASH:=2ce930d70a931de660fdaf271d70192793b1b240272645bf0275779f6704df6b
 
 PKG_MAINTAINER:=Jeffery To <jeffery.to@gmail.com>
 PKG_LICENSE:=BSD-3-Clause
@@ -106,7 +106,7 @@ endif
 define Package/golang/Default
 $(call GoPackage/GoSubMenu)
   TITLE:=Go programming language
-  URL:=https://golang.org/
+  URL:=https://go.dev/
   DEPENDS:=$(GO_ARCH_DEPENDS)
 endef
 
@@ -202,17 +202,20 @@ endif
 $(eval $(call GoCompiler/AddProfile,Host,$(HOST_BUILD_DIR),$(HOST_GO_PREFIX),$(HOST_GO_VERSION_ID),$(GO_HOST_OS_ARCH),$(HOST_GO_INSTALL_SUFFIX)))
 
 HOST_GO_VARS= \
+	GOHOSTARCH="$(GO_HOST_ARCH)" \
 	GOCACHE="$(GO_BUILD_CACHE_DIR)" \
 	GOENV=off \
 	CC="$(HOSTCC_NOCACHE)" \
 	CXX="$(HOSTCXX_NOCACHE)"
 
-define Host/Compile
+define Host/Configure
 	$(call GoCompiler/Bootstrap/CheckHost,$(BOOTSTRAP_GO_VALID_OS_ARCH))
 	$(call GoCompiler/Host/CheckHost,$(HOST_GO_VALID_OS_ARCH))
 
 	mkdir -p "$(GO_BUILD_CACHE_DIR)"
+endef
 
+define Host/Compile
 	$(call GoCompiler/Bootstrap/Make, \
 		$(HOST_GO_VARS) \
 	)
@@ -262,12 +265,16 @@ $(eval $(call GoCompiler/AddProfile,Package,$(PKG_BUILD_DIR),$(PKG_GO_PREFIX),$(
 
 PKG_GO_ZBOOTSTRAP_MODS:= \
 	s/defaultGO386 = `[^`]*`/defaultGO386 = `$(or $(GO_386),sse2)`/; \
+	s/defaultGOAMD64 = `[^`]*`/defaultGOAMD64 = `$(or $(GO_AMD64),v1)`/; \
 	s/defaultGOARM = `[^`]*`/defaultGOARM = `$(or $(GO_ARM),5)`/; \
 	s/defaultGOMIPS = `[^`]*`/defaultGOMIPS = `$(or $(GO_MIPS),hardfloat)`/; \
 	s/defaultGOMIPS64 = `[^`]*`/defaultGOMIPS64 = `$(or $(GO_MIPS64),hardfloat)`/; \
-	s/defaultGOPPC64 = `[^`]*`/defaultGOPPC64 = `power8`/;
+	s/defaultGOPPC64 = `[^`]*`/defaultGOPPC64 = `$(or $(GO_PPC64),power8)`/;
+
 PKG_GO_ZBOOTSTRAP_PATH:=$(PKG_BUILD_DIR)/src/internal/buildcfg/zbootstrap.go
+
 PKG_GO_VARS= \
+	GOHOSTARCH="$(GO_HOST_ARCH)" \
 	GOCACHE="$(GO_BUILD_CACHE_DIR)" \
 	GOENV=off \
 	GO_GCC_HELPER_PATH="$$$$PATH" \
@@ -275,15 +282,19 @@ PKG_GO_VARS= \
 	CXX=g++ \
 	PKG_CONFIG=pkg-config \
 	PATH="$(HOST_GO_ROOT)/openwrt:$$$$PATH"
+
 PKG_GO_GCFLAGS= \
 	$(if $(GO_PKG_ENABLE_SPECTRE),-spectre all)
+
 PKG_GO_ASMFLAGS= \
 	$(if $(GO_PKG_ENABLE_SPECTRE),-spectre all)
+
 PKG_GO_LDFLAGS= \
 	-buildid '$(SOURCE_DATE_EPOCH)' \
 	-linkmode external \
 	-extldflags '$(patsubst -z%,-Wl$(comma)-z$(comma)%,$(TARGET_LDFLAGS))' \
 	$(if $(CONFIG_NO_STRIP)$(CONFIG_DEBUG),,-s -w)
+
 # setting -trimpath is not necessary here because the paths inside the
 # compiler binary are relative to GOROOT_FINAL (PKG_GO_ROOT), which is
 # static / not dependent on the build environment
@@ -292,16 +303,23 @@ PKG_GO_INSTALL_ARGS= \
 	$(if $(PKG_GO_GCFLAGS),-gcflags "all=$(PKG_GO_GCFLAGS)") \
 	$(if $(PKG_GO_ASMFLAGS),-asmflags "all=$(PKG_GO_ASMFLAGS)") \
 	$(if $(filter $(GO_PKG_ENABLE_PIE),1),-buildmode pie)
-define Build/Compile
+
+define Build/Configure
 	mkdir -p "$(GO_BUILD_CACHE_DIR)"
+endef
+
+define Build/Compile
 	@echo "Building target Go first stage"
+
 	$(call GoCompiler/Package/Make, \
 		GOROOT_BOOTSTRAP="$(HOST_GO_ROOT)" \
 		GO_GCC_HELPER_CC="$(HOSTCC)" \
 		GO_GCC_HELPER_CXX="$(HOSTCXX)" \
 		$(PKG_GO_VARS) \
 	)
+
 	$(SED) '$(PKG_GO_ZBOOTSTRAP_MODS)' "$(PKG_GO_ZBOOTSTRAP_PATH)"
+
 	( \
 		if echo 'int main() { return 0; }' | $(TARGET_CC) -o $(PKG_BUILD_DIR)/test-ldso -x c - > /dev/null 2>&1; then \
 			LDSO=$$$$( \
@@ -311,7 +329,9 @@ define Build/Compile
 		fi ; \
 		$(SED) "s,defaultGO_LDSO = \`[^\`]*\`,defaultGO_LDSO = \`$$$$LDSO\`," "$(PKG_GO_ZBOOTSTRAP_PATH)" ; \
 	)
+
 	@echo "Building target Go second stage"
+
 	( \
 		cd "$(PKG_BUILD_DIR)/bin" ; \
 		export $(GO_PKG_TARGET_VARS) ; \
@@ -326,16 +346,20 @@ define Build/Compile
 		exit "$$$$retval" ; \
 	)
 endef
+
 define Package/golang/install
 	$(call GoCompiler/Package/Install/Bin,$(1)$(PKG_GO_PREFIX))
 	$(call GoCompiler/Package/Install/BinLinks,$(1)$(PKG_GO_PREFIX))
 endef
+
 define Package/golang-doc/install
 	$(call GoCompiler/Package/Install/Doc,$(1)$(PKG_GO_PREFIX))
 endef
+
 define Package/golang-src/install
 	$(call GoCompiler/Package/Install/Src,$(1)$(PKG_GO_PREFIX))
 endef
+
 # src/debug contains ELF executables as test data
 # and they reference these libraries
 # we need to call this in Package/$(1)/extra_provides
@@ -343,6 +367,8 @@ endef
 define Package/golang-src/extra_provides
 	echo 'libc.so.6'
 endef
+
+
 $(eval $(call HostBuild))
 $(eval $(call BuildPackage,golang))
 $(eval $(call BuildPackage,golang-doc))

@@ -1,3 +1,66 @@
+diff -uprN a/package/own/lua-neturl/Makefile b/package/own/lua-neturl/Makefile
+--- a/package/own/lua-neturl/Makefile	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/lua-neturl/Makefile	2022-11-22 20:56:49.905322735 +0800
+@@ -0,0 +1,44 @@
++# SPDX-License-Identifier: GPL-3.0-only
++#
++# Copyright (C) 2022 ImmortalWrt.org
++
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=neturl
++PKG_VERSION:=1.1-1
++PKG_RELEASE:=1
++
++PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
++PKG_SOURCE_URL:=https://codeload.github.com/golgote/neturl/tar.gz/v$(PKG_VERSION)?
++PKG_HASH:=skip
++
++PKG_MAINTAINER:=Tianling Shen <cnsztl@immortalwrt.org>
++PKG_LICENSE:=MIT
++PKG_LICNESE_FILES:=LICENSE.txt
++
++include $(INCLUDE_DIR)/package.mk
++
++define Package/lua-neturl
++  SUBMENU:=Lua
++  SECTION:=lang
++  CATEGORY:=Languages
++  TITLE:=URL and Query string parser, builder, normalizer for Lua
++  URL:=https://github.com/golgote/neturl
++  DEPENDS:=+lua
++  PKGARCH:=all
++endef
++
++define Package/lua-neturl/description
++  This small Lua library provides a few functions to parse URL with
++  querystring and build new URL easily.
++endef
++
++define Build/Compile
++endef
++
++define Package/lua-neturl/install
++	$(INSTALL_DIR) $(1)/usr/lib/lua
++	$(CP) $(PKG_BUILD_DIR)/lib/net/url.lua $(1)/usr/lib/lua/
++endef
++
++$(eval $(call BuildPackage,lua-neturl))
+diff -uprN a/package/own/lua-neturl/patches/010-userinfo-regex.patch b/package/own/lua-neturl/patches/010-userinfo-regex.patch
+--- a/package/own/lua-neturl/patches/010-userinfo-regex.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/own/lua-neturl/patches/010-userinfo-regex.patch	2022-11-22 20:57:23.513083801 +0800
+@@ -0,0 +1,11 @@
++--- a/lib/net/url.lua
+++++ b/lib/net/url.lua
++@@ -340,7 +340,7 @@ function M:setAuthority(authority)
++ 				self.password = v
++ 				return ''
++ 		end)
++-		if string.find(userinfo, "^[%w%+%.]+$") then
+++		if string.find(userinfo, "^[%p%w%+%.]+$") then
++ 			self.user = userinfo
++ 		else
++ 			-- incorrect userinfo
 diff -uprN a/package/own/chinadns-ng/Makefile b/package/own/chinadns-ng/Makefile
 --- a/package/own/chinadns-ng/Makefile	1970-01-01 08:00:00.000000000 +0800
 +++ b/package/own/chinadns-ng/Makefile	2022-06-15 21:45:49.198781351 +0800

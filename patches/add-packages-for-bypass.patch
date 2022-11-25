@@ -1478,6 +1478,7 @@ diff -uprN a/package/own/shadowsocksr-libev/patches/101-Fix-Werror-sizeof-pointe
 +                 }
 +             }
 + 
++
 diff -uprN a/package/own/shadowsocksr-libev/patches/102-Read-listening-mode-from-config.patch b/package/own/shadowsocksr-libev/patches/102-Read-listening-mode-from-config.patch
 --- a/package/own/shadowsocksr-libev/patches/102-Read-listening-mode-from-config.patch	1970-01-01 08:00:00.000000000 +0800
 +++ b/package/own/shadowsocksr-libev/patches/102-Read-listening-mode-from-config.patch	2022-06-11 13:33:10.994048000 +0800

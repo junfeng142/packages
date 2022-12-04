@@ -1,8 +1,0 @@
-config alist
-	option enable '0'
-	option addrtype 'lan'
-	option port '5244'
-	option ssl 'false'
-	option temp_dir '/tmp/Alist'
-	option project_path '/tmp'
-	option loged 'true'

@@ -123,19 +123,15 @@ o.default = o.enabled
 o.rmempty = false
 o.description = translate("Start and run information document for alist.")
 
-local logfile = "/tmp/Alist/alist.log"
 o = s:taboption("log", TextValue, "logs")
 o:depends("loged", "true")
+o.rmempty = true
 o.rows = 18
-o.wrap = "off"
+o.readonly = true
 function o.cfgvalue()
-	local logs = luci.util.execi("cat "..logfile)
-    local s = ""
-    for line in logs do
-	    s = line .. "\n" .. s
-    end
-    return s
+    return fs.readfile("/tmp/Alist/alist.log") or ""
 end
-o.readonly="readonly"
+o.write = function(o,o,o)
+end
 
 return m

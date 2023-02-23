@@ -127,7 +127,7 @@ local logfile = logpath .. "/filebrowser.log"
 o = s:taboption("log", TextValue, "logs")
 o:depends("Enabled", "true")
 o.rows = 16
-o.wrap = "off"
+o.readonly = true
 function o.cfgvalue()
 	local logs = luci.util.execi("cat "..logfile)
     local s = ""
@@ -136,6 +136,7 @@ function o.cfgvalue()
     end
     return s
 end
-o.readonly="readonly"
+o.write = function(o,o,o)
+end
 
 return m

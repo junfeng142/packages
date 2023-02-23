@@ -192,34 +192,6 @@ end
 o = s:taboption("bittorrent", Value, "peer_id_prefix", translate("Prefix of peer ID"))
 o.placeholder = "A2-" .. ipkg_ver_lined("aria2") .. "-"
 
-local logfile = "/var/log/aria2.log"
-o = s:taboption("log", Flag, "enable_logging", translate("Enable log"), translate("The default log file is /var/log/aria2.log"))
-o.enabled = "true"
-o.disabled = "false"
-o.default = o.enabled
- 
-o = s:taboption("log", ListValue, "log_level", translate("Log level"))
-o:depends("enable_logging", "true")
-o:value("debug", translate("Debug"))
-o:value("info", translate("Info"))
-o:value("notice", translate("Notice"))
-o:value("warn", translate("Warn"))
-o:value("error", translate("Error"))
-
-o = s:taboption("log", TextValue, "logs")
-o:depends("enable_logging", "true")
-o.rows = 18
-o.wrap = "off"
-function o.cfgvalue()
-    local logs = luci.util.execi("cat "..logfile)
-    local s = ""
-    for line in logs do
-	    s = line .. "\n" .. s
-    end
-    return s
-end
-o.readonly="readonly"
-
 s = m:section(TypedSection, "aria2", translate("Extra Settings"))
 s.addremove = false
 s.anonymous = true

@@ -41,7 +41,7 @@ start() {
     cat > $PROGDIR/config.json << EOF
 {
   "force": false,
-  "address": "$listen_addr",
+  "address": "$ADDR",
   "port": $PORT,
   "jwt_secret": "random generated",
   "token_expires_in": 48,

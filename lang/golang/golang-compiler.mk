@@ -1,189 +1,204 @@
-#
-# Copyright (C) 2018, 2020 Jeffery To
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+#!/bin/sh
 
-ifeq ($(origin GO_INCLUDE_DIR),undefined)
-  GO_INCLUDE_DIR:=$(dir $(lastword $(MAKEFILE_LIST)))
-endif
+nl="
+"
 
-include $(GO_INCLUDE_DIR)/golang-values.mk
+log() {
+	# shellcheck disable=SC2039
+	local IFS=" "
+	printf '%s\n' "$*"
+}
 
+log_error() {
+	# shellcheck disable=SC2039
+	local IFS=" "
+	printf 'Error: %s\n' "$*" >&2
+}
 
-# $(1) valid GOOS_GOARCH combinations
-# $(2) go version id
-define GoCompiler/Default/CheckHost
-	$(if $(filter $(GO_HOST_OS_ARCH),$(1)),,$(error go-$(2) cannot be installed on $(GO_HOST_OS)/$(GO_HOST_ARCH)))
-endef
+link_contents() {
+	# shellcheck disable=SC2039
+	local src="$1" dest="$2" IFS="$nl" dirs dir base
 
-# $(1) source go root
-# $(2) destination prefix
-# $(3) go version id
-# $(4) additional environment variables (optional)
-define GoCompiler/Default/Make
-	( \
-		cd "$(1)/src" ; \
-		$(if $(2),GOROOT_FINAL="$(2)/lib/go-$(3)") \
-		$(4) \
-		$(BASH) make.bash \
-		$(if $(findstring s,$(OPENWRT_VERBOSE)),-v) \
-		--no-banner \
-		; \
-	)
-endef
+	if [ -n "$(find "$src" -mindepth 1 -maxdepth 1 -name "*.go" -not -type d)" ]; then
+		log_error "$src is already a Go library"
+		return 1
+	fi
 
-# $(1) destination prefix
-# $(2) go version id
-define GoCompiler/Default/Install/make-dirs
-	$(INSTALL_DIR) "$(1)/lib/go-$(2)"
-	$(INSTALL_DIR) "$(1)/share/go-$(2)"
-endef
-
-# $(1) source go root
-# $(2) destination prefix
-# $(3) go version id
-# $(4) file/directory name
-define GoCompiler/Default/Install/install-share-data
-	$(CP) "$(1)/$(4)" "$(2)/share/go-$(3)/"
-	$(LN) "../../share/go-$(3)/$(4)" "$(2)/lib/go-$(3)/"
-endef
-
-# $(1) source go root
-# $(2) destination prefix
-# $(3) go version id
-# $(4) GOOS_GOARCH
-# $(5) install suffix (optional)
-define GoCompiler/Default/Install/Bin
-	$(call GoCompiler/Default/Install/make-dirs,$(2),$(3))
-
-	$(call GoCompiler/Default/Install/install-share-data,$(1),$(2),$(3),api)
-
-	$(INSTALL_DATA) -p "$(1)/VERSION" "$(2)/lib/go-$(3)/"
-
-	for file in AUTHORS CONTRIBUTING.md CONTRIBUTORS LICENSE PATENTS README.md SECURITY.md; do \
-		if [ -f "$(1)/$$$$file" ]; then \
-			$(INSTALL_DATA) -p "$(1)/$$$$file" "$(2)/share/go-$(3)/" ; \
-		fi ; \
+	dirs="$(find "$src" -mindepth 1 -maxdepth 1 -type d)"
+	for dir in $dirs; do
+		base="${dir##*/}"
+		if [ -d "$dest/$base" ]; then
+			case "$dir" in
+			*$GO_BUILD_DEPENDS_SRC/$GO_PKG)
+				log "$GO_PKG is already installed. Please check for circular dependencies."
+				;;
+			*)
+				link_contents "$src/$base" "$dest/$base"
+				;;
+			esac
+		else
+			log "...${src#$GO_BUILD_DEPENDS_SRC}/$base"
+			ln -sf "$src/$base" "$dest/$base"
+		fi
 	done
 
-	$(INSTALL_DIR) "$(2)/lib/go-$(3)/bin"
+	return 0
+}
 
-  ifeq ($(4),$(GO_HOST_OS_ARCH))
-	$(INSTALL_BIN) -p "$(1)/bin"/* "$(2)/lib/go-$(3)/bin/"
-  else
-	$(INSTALL_BIN) -p "$(1)/bin/$(4)"/* "$(2)/lib/go-$(3)/bin/"
-  endif
+configure() {
+	# shellcheck disable=SC2039
+	local files code testdata gomod pattern extra IFS file dest
 
-	$(INSTALL_DIR) "$(2)/lib/go-$(3)/pkg"
-	$(CP) "$(1)/pkg/$(4)$(if $(5),_$(5))" "$(2)/lib/go-$(3)/pkg/"
+	cd "$BUILD_DIR" || return 1
 
-	$(INSTALL_DIR) "$(2)/lib/go-$(3)/pkg/tool/$(4)"
-	$(INSTALL_BIN) -p "$(1)/pkg/tool/$(4)"/* "$(2)/lib/go-$(3)/pkg/tool/$(4)/"
-endef
+	files="$(find ./ -path "*/.*" -prune -o -not -type d -print)"
 
-# $(1) destination prefix
-# $(2) go version id
-define GoCompiler/Default/Install/BinLinks
-	$(INSTALL_DIR) "$(1)/bin"
-	$(LN) "../lib/go-$(2)/bin/go" "$(1)/bin/go"
-	$(LN) "../lib/go-$(2)/bin/gofmt" "$(1)/bin/gofmt"
-endef
+	if [ "$GO_INSTALL_ALL" != 1 ]; then
+		code="$(printf '%s\n' "$files" | grep '\.\(c\|cc\|cpp\|go\|h\|hh\|hpp\|proto\|s\)$')"
+		testdata="$(printf '%s\n' "$files" | grep '/testdata/')"
+		gomod="$(printf '%s\n' "$files" | grep '/go\.\(mod\|sum\|work\)$')"
 
-# $(1) source go root
-# $(2) destination prefix
-# $(3) go version id
-define GoCompiler/Default/Install/Doc
-	$(call GoCompiler/Default/Install/make-dirs,$(2),$(3))
+		for pattern in $GO_INSTALL_EXTRA; do
+			extra="$(printf '%s\n' "$extra"; printf '%s\n' "$files" | grep -e "$pattern")"
+		done
 
-	$(call GoCompiler/Default/Install/install-share-data,$(1),$(2),$(3),doc)
-endef
-
-# $(1) source go root
-# $(2) destination prefix
-# $(3) go version id
-define GoCompiler/Default/Install/Src
-	$(call GoCompiler/Default/Install/make-dirs,$(2),$(3))
-
-	$(call GoCompiler/Default/Install/install-share-data,$(1),$(2),$(3),lib)
-	$(call GoCompiler/Default/Install/install-share-data,$(1),$(2),$(3),misc)
-	$(call GoCompiler/Default/Install/install-share-data,$(1),$(2),$(3),src)
-	$(call GoCompiler/Default/Install/install-share-data,$(1),$(2),$(3),test)
-
-	$(FIND) \
-		"$(2)/share/go-$(3)/src/" \
-		\! -type d -a \( -name "*.bat" -o -name "*.rc" \) \
-		-delete
-
-	if [ -d "$(1)/pkg/include" ]; then \
-		$(INSTALL_DIR) "$(2)/lib/go-$(3)/pkg" ; \
-		$(INSTALL_DIR) "$(2)/share/go-$(3)/pkg" ; \
-		$(CP) "$(1)/pkg/include" "$(2)/share/go-$(3)/pkg/" ; \
-		$(LN) "../../../share/go-$(3)/pkg/include" "$(2)/lib/go-$(3)/pkg/" ; \
+		files="$(printf '%s\n%s\n%s\n%s\n' "$code" "$testdata" "$gomod" "$extra" | grep -v '^[[:space:]]*$' | sort -u)"
 	fi
-endef
 
-# $(1) destination prefix
-# $(2) go version id
-define GoCompiler/Default/Uninstall
-	rm -rf "$(1)/lib/go-$(2)"
-	rm -rf "$(1)/share/go-$(2)"
-endef
+	IFS="$nl"
 
-# $(1) destination prefix
-define GoCompiler/Default/Uninstall/BinLinks
-	rm -f "$(1)/bin/go"
-	rm -f "$(1)/bin/gofmt"
-endef
+	log "Copying files from $BUILD_DIR into $GO_BUILD_DIR/src/$GO_PKG"
+	mkdir -p "$GO_BUILD_DIR/src"
+	for file in $files; do
+		log "${file#./}"
+		dest="$GO_BUILD_DIR/src/$GO_PKG/${file#./}"
+		mkdir -p "${dest%/*}"
+		cp -fpR "$file" "$dest"
+	done
+	log
+
+	if [ "$GO_SOURCE_ONLY" != 1 ]; then
+		if [ -d "$GO_BUILD_DEPENDS_SRC" ]; then
+			log "Symlinking directories from $GO_BUILD_DEPENDS_SRC into $GO_BUILD_DIR/src"
+			link_contents "$GO_BUILD_DEPENDS_SRC" "$GO_BUILD_DIR/src"
+		else
+			log "$GO_BUILD_DEPENDS_SRC does not exist, skipping symlinks"
+		fi
+	else
+		log "Not building binaries, skipping symlinks"
+	fi
+	log
+
+	return 0
+}
+
+build() {
+	# shellcheck disable=SC2039
+	local modargs pattern targets retval
+
+	cd "$GO_BUILD_DIR" || return 1
+
+	if [ -f "$BUILD_DIR/go.mod" ] ; then
+		mkdir -p "$GO_MOD_CACHE_DIR"
+		modargs="$GO_MOD_ARGS"
+	fi
+
+	log "Finding targets"
+	# shellcheck disable=SC2086
+	targets="$(go list $modargs $GO_BUILD_PKG)"
+	for pattern in $GO_EXCLUDES; do
+		targets="$(printf '%s\n' "$targets" | grep -v "$pattern")"
+	done
+	log
+
+	if [ "$GO_GO_GENERATE" = 1 ]; then
+		log "Calling go generate"
+		# shellcheck disable=SC2086
+		GOOS='' GOARCH='' GO386='' GOARM='' GOMIPS='' GOMIPS64='' \
+		go generate -v $targets
+		log
+	fi
+
+	if [ "$GO_SOURCE_ONLY" = 1 ]; then
+		return 0
+	fi
+
+	log "Building targets"
+	mkdir -p "$GO_BUILD_DIR/bin" "$GO_BUILD_CACHE_DIR"
+	# shellcheck disable=SC2086
+	go install $modargs "$@" $targets
+	retval="$?"
+	log
+
+	if [ "$retval" -eq 0 ] && [ -z "$(find "$GO_BUILD_BIN_DIR" -maxdepth 0 -type d -not -empty 2>/dev/null)" ]; then
+		log_error "No binaries were built"
+		retval=1
+	fi
+
+	if [ "$retval" -ne 0 ]; then
+		cache_cleanup
+	fi
+
+	return "$retval"
+}
+
+install_bin() {
+	# shellcheck disable=SC2039
+	local dest="$1"
+	install -d -m0755 "$dest/$GO_INSTALL_BIN_PATH"
+	install -m0755 "$GO_BUILD_BIN_DIR"/* "$dest/$GO_INSTALL_BIN_PATH/"
+}
+
+install_src() {
+	# shellcheck disable=SC2039
+	local dest="$1" dir="${GO_PKG%/*}"
+	install -d -m0755 "$dest/$GO_BUILD_DEPENDS_PATH/src/$dir"
+	cp -fpR "$GO_BUILD_DIR/src/$GO_PKG" "$dest/$GO_BUILD_DEPENDS_PATH/src/$dir/"
+}
+
+cache_cleanup() {
+	if ! [ -d "$GO_MOD_CACHE_DIR" ]; then
+		return 0
+	fi
+
+	# in case go is called without -modcacherw
+	find "$GO_MOD_CACHE_DIR" -type d -not -perm -u+w -exec chmod u+w '{}' +
+
+	if [ -n "$CONFIG_GOLANG_MOD_CACHE_WORLD_READABLE" ]; then
+		find "$GO_MOD_CACHE_DIR"      -type d -not -perm -go+rx -exec chmod go+rx '{}' +
+		find "$GO_MOD_CACHE_DIR" -not -type d -not -perm -go+r  -exec chmod go+r  '{}' +
+	fi
+
+	return 0
+}
 
 
-# $(1) profile name
-# $(2) source go root
-# $(3) destination prefix
-# $(4) go version id
-# $(5) GOOS_GOARCH
-# $(6) install suffix (optional)
-define GoCompiler/AddProfile
+if [ "$#" -lt 1 ]; then
+	log_error "Missing command"
+	exit 1
+fi
 
-  # $$(1) valid GOOS_GOARCH combinations
-  define GoCompiler/$(1)/CheckHost
-	$$(call GoCompiler/Default/CheckHost,$$(1),$(4))
-  endef
+command="$1"
+shift 1
 
-  # $$(1) additional environment variables (optional)
-  define GoCompiler/$(1)/Make
-	$$(call GoCompiler/Default/Make,$(2),$(3),$(4),$$(1))
-  endef
-
-  # $$(1) override install prefix (optional)
-  define GoCompiler/$(1)/Install/Bin
-	$$(call GoCompiler/Default/Install/Bin,$(2),$$(or $$(1),$(3)),$(4),$(5),$(6))
-  endef
-
-  # $$(1) override install prefix (optional)
-  define GoCompiler/$(1)/Install/BinLinks
-	$$(call GoCompiler/Default/Install/BinLinks,$$(or $$(1),$(3)),$(4))
-  endef
-
-  # $$(1) override install prefix (optional)
-  define GoCompiler/$(1)/Install/Doc
-	$$(call GoCompiler/Default/Install/Doc,$(2),$$(or $$(1),$(3)),$(4))
-  endef
-
-  # $$(1) override install prefix (optional)
-  define GoCompiler/$(1)/Install/Src
-	$$(call GoCompiler/Default/Install/Src,$(2),$$(or $$(1),$(3)),$(4))
-  endef
-
-  # $$(1) override install prefix (optional)
-  define GoCompiler/$(1)/Uninstall
-	$$(call GoCompiler/Default/Uninstall,$$(or $$(1),$(3)),$(4))
-  endef
-
-  # $$(1) override install prefix (optional)
-  define GoCompiler/$(1)/Uninstall/BinLinks
-	$$(call GoCompiler/Default/Uninstall/BinLinks,$$(or $$(1),$(3)))
-  endef
-
-endef
+case "$command" in
+	configure)
+		configure
+		;;
+	build)
+		build "$@"
+		;;
+	install_bin)
+		install_bin "$@"
+		;;
+	install_src)
+		install_src "$@"
+		;;
+	cache_cleanup)
+		cache_cleanup
+		;;
+	*)
+		log_error "Invalid command \"$command\""
+		exit 1
+		;;
+esac

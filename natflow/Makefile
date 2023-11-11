@@ -9,12 +9,15 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=natflow
-PKG_VERSION:=20231109
+PKG_VERSION:=1.0.2
+PKG_RELEASE:=20210930
 
-PKG_SOURCE_URL:=https://codeload.github.com/ptpt52/natflow/tar.gz/$(PKG_VERSION)?
-PKG_HASH:=0388edbc46b54fb25c25a4edc074e59c6b9516713a99bb90a89e05b974ff9c02
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_RELEASE).tar.xz
+PKG_SOURCE_URL:=https://github.com/ptpt52/natflow.git
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_VERSION:=$(PKG_RELEASE)
+PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+PKG_MIRROR_HASH:=8c13e31a19edf89a864195f6ebbf6f7f09b18469f7e824ec75c323ed467e7dab
 PKG_MAINTAINER:=Chen Minqiang <ptpt52@gmail.com>
 PKG_LICENSE:=GPL-2.0
 
@@ -25,11 +28,10 @@ define KernelPackage/natflow
   SUBMENU:=Fast Forward Stacks
   TITLE:=natflow kernel driver
   KCONFIG:= \
-	    CONFIG_NF_CONNTRACK_MARK=y \
 	    CONFIG_NETFILTER_INGRESS=y
   FILES:=$(PKG_BUILD_DIR)/natflow.ko
   AUTOLOAD:=$(call AutoLoad,96,natflow)
-  DEPENDS:= +kmod-ipt-conntrack +kmod-ipt-nat +kmod-ipt-ipset +kmod-br-netfilter +LINUX_5_4:kmod-nf-flow
+  DEPENDS:= +kmod-ipt-conntrack +kmod-ipt-nat +kmod-ipt-ipset
 endef
 
 define KernelPackage/natflow/description
@@ -38,19 +40,12 @@ endef
 
 include $(INCLUDE_DIR)/kernel-defaults.mk
 
-EXTRA_CFLAGS += -DCONFIG_NATFLOW_PATH -DCONFIG_NATFLOW_URLLOGGER
-ifneq ($(CONFIG_TARGET_mediatek_mt7622),)
-EXTRA_CFLAGS += -DCONFIG_HWNAT_EXTDEV_USE_VLAN_HASH
-endif
-
 define Build/Compile/natflow
 	+$(MAKE) $(PKG_JOBS) -C "$(LINUX_DIR)" \
-		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		$(KERNEL_MAKE_FLAGS) \
 		ARCH="$(LINUX_KARCH)" \
 		CROSS_COMPILE="$(KERNEL_CROSS)" \
 		M="$(PKG_BUILD_DIR)" \
-		$(if $(CONFIG_KERNEL_DEBUG_INFO),,NO_DEBUG=1) \
 		modules
 endef
 
@@ -68,35 +63,7 @@ endef
 define Package/natflow-boot/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/natflow-boot.init $(1)/etc/init.d/natflow-boot
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
-	$(INSTALL_DATA) ./files/21-natflow-boot.hotplug $(1)/etc/hotplug.d/iface/21-natflow-boot
-	$(INSTALL_DIR) $(1)/lib/preinit
-	$(INSTALL_DATA) ./files/natflow-boot.preinit $(1)/lib/preinit/95_natflow-boot
-endef
-
-define Package/natflow-auth
-  CATEGORY:=X
-  SUBMENU:=Fast Forward Stacks
-  TITLE:=natflow auth init script
-  DEPENDS:= +kmod-natflow +ipset +lua-ipops
-endef
-
-define Package/natflow-auth/conffiles
-/etc/config/natflow
-endef
-
-define Package/natflow-auth/install
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/natflow-simple-qos.init $(1)/etc/init.d/natflow-simple-qos
-	$(INSTALL_BIN) ./files/natflow-qos.init $(1)/etc/init.d/natflow-qos
-	$(INSTALL_BIN) ./files/natflow-user.init $(1)/etc/init.d/natflow-user
-	$(INSTALL_BIN) ./files/natflow-zone.init $(1)/etc/init.d/natflow-zone
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_DATA) ./files/natflow.config $(1)/etc/config/natflow
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
-	$(INSTALL_DATA) ./files/20-natflow-zone.hotplug $(1)/etc/hotplug.d/iface/20-natflow-zone
 endef
 
 $(eval $(call KernelPackage,natflow))
 $(eval $(call BuildPackage,natflow-boot))
-$(eval $(call BuildPackage,natflow-auth))

@@ -21,9 +21,7 @@ define Package/lua-ipops
   CATEGORY:=X
   SUBMENU:=Libs
   DEPENDS:=
-  PKGARCH:=all
   TITLE:=lua ipops lib
-  DEPENDS:=+lua
 endef
 
 define Package/lua-ipops/install

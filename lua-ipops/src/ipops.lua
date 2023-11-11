@@ -203,71 +203,6 @@ local function rangeSet_add_range(rangeSet, range)
 	return rangeSet_new
 end
 
-local function rangeSet_del_range(rangeSet, range)
-	rangeSet = rangeSet or {}
-	if not range then
-		return rangeSet
-	end
-	if #rangeSet == 0 then
-		return rangeSet
-	end
-
-	local rangeSet_new = {}
-	for _, r in ipairs(rangeSet) do
-		if r[2] < range[1] then
-			table.insert(rangeSet_new, r)
-		else --r[2] >= range[1]
-			if r[1] < range[1] then
-				table.insert(rangeSet_new, {r[1], range[1] - 1})
-			--else --r[1] >= range[1]
-			end
-			if r[2] > range[2] then
-				if r[1] > range[2] then
-					table.insert(rangeSet_new, r)
-				else --r[1] <= range[2]
-					table.insert(rangeSet_new, {range[2] + 1, r[2]})
-				end
-			--else --r[2] == range[2]
-			end
-		end
-	end
-
-	return rangeSet_new
-end
-
-local function rangeSet_sub_rangeSet(rangeSetA, rangeSetB)
-	rangeSetA = rangeSetA or {}
-	if #rangeSetA == 0 then
-		return rangeSetA
-	end
-	for _, range in ipairs(rangeSetB) do
-		rangeSetA = rangeSet_del_range(rangeSetA, range)
-	end
-	return rangeSetA
-end
-
-local function range_in_rangeSet(range, rangeSet)
-	for _, r in ipairs(rangeSet) do
-		if range[1] >= r[1] and range[2] <= r[2] then
-			return true
-		end
-	end
-	return false
-end
-
-local function rangeSet_in_rangeSet(rangeSetA, rangeSetB)
-	rangeSetA = rangeSetA or {}
-	if #rangeSetA == 0 then
-		return true
-	end
-	for _, range in ipairs(rangeSetA) do
-		if  not range_in_rangeSet(range, rangeSetB) then
-			return false
-		end
-	end
-	return true
-end
-
 -- netStringSet: [netString, ...]
 local function netStringSet2rangeSet(netStringSet)
 	local rangeSet = {}
@@ -384,9 +319,6 @@ local __func__ =  {
 	rangeSet2netStringSet			= rangeSet2netStringSet,
 	rangeSet2ipcidrSet			= rangeSet2ipcidrSet,
 	rangeSet_add_range			= rangeSet_add_range,
-	rangeSet_del_range			= rangeSet_del_range,
-	rangeSet_sub_rangeSet			= rangeSet_sub_rangeSet,
-	rangeSet_in_rangeSet			= rangeSet_in_rangeSet,
 }
 
 -- api for test_func
@@ -411,66 +343,10 @@ local function netStrings2ipcidrStrings(argv)
 	return 0
 end
 
--- eg: lua ipops.lua netStrings_sub_netStrings "0.0.0.0/0" "1.2.3.4,192.168.1.0/24,192.168.100.100-192.168.200.222"
-local function netStrings_sub_netStrings(argv)
-	local netString
-	local rangeSetA = {}
-	local rangeSetB = {}
-	local netStringsA, netStringsB = argv[1], argv[2]
-	if not netStringsA or not netStringsB then
-		return -1
-	end
-	for netString in netStringsA:gmatch("[^,]+") do
-		rangeSetA = rangeSet_add_range(rangeSetA, netString2range(netString))
-	end
-	for netString in netStringsB:gmatch("[^,]+") do
-		rangeSetB = rangeSet_add_range(rangeSetB, netString2range(netString))
-	end
-
-	rangeSetA = rangeSet_sub_rangeSet(rangeSetA, rangeSetB)
-
-	local ipcidrSet = rangeSet2ipcidrSet(rangeSetA)
-
-	print(table.concat(ipcidrSet, ','))
-
-	return 0
-end
-
--- eg: lua ipops.lua netStrings_test_netStrings "192.168.15.0/24" "192.168.15.0/29"
-local function netStrings_test_netStrings(argv)
-	local netString
-	local rangeSetA = {}
-	local rangeSetB = {}
-	local netStringsA, netStringsB = argv[1], argv[2]
-	if not netStringsA or not netStringsB then
-		return -1
-	end
-	for netString in netStringsA:gmatch("[^,]+") do
-		rangeSetA = rangeSet_add_range(rangeSetA, netString2range(netString))
-	end
-	for netString in netStringsB:gmatch("[^,]+") do
-		rangeSetB = rangeSet_add_range(rangeSetB, netString2range(netString))
-	end
-
-	if (rangeSet_in_rangeSet(rangeSetB, rangeSetA)) then
-		return 0
-	end
-
-	return 1
-end
-
 local test_func = {
 	netStrings2ipcidrStrings = {
 		argc = 1,
 		func = netStrings2ipcidrStrings
-	},
-	netStrings_sub_netStrings = {
-		argc = 2,
-		func = netStrings_sub_netStrings
-	},
-	netStrings_test_netStrings = {
-		argc = 2;
-		func = netStrings_test_netStrings
 	}
 }
 

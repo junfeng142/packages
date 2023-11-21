@@ -1,4 +1,4 @@
-diff -uprN a/luci/contrib/package/lucihttp/Makefile b/luci/contrib/package/lucihttp/Makefile
+diff -uprN a/feeds/luci/contrib/package/lucihttp/Makefile b/feeds/luci/contrib/package/lucihttp/Makefile
 --- a/feeds/luci/contrib/package/lucihttp/Makefile	2023-11-21 21:05:47.464339280 +0800
 +++ b/feeds/luci/contrib/package/lucihttp/Makefile	2023-11-21 21:06:23.554888416 +0800
 @@ -5,9 +5,9 @@ PKG_RELEASE:=1

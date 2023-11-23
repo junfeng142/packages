@@ -1,5 +1,0 @@
-config service 'service'
-	option enable '0'
-	option port '5299'
-	option download_path '/tmp/Baidupcs/download'
-	option project_path '/tmp'

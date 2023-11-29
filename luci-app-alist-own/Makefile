@@ -6,7 +6,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-alist-own
-PKG_VERSION:=v1.0.1
+PKG_VERSION:=v1.1.0
 PKG_RELEASE:=1
 PKG_MAINTAINER:=<https://github.com/alist-org/alist>
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)

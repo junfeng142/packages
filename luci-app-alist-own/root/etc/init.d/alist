@@ -32,20 +32,25 @@ fi
 
 start() {	
 
-	[ $ENABLED != 1 ] && return 1
+    [ $ENABLED != 1 ] && return 1
 
     mkdir -p $TMPDIR
+    [ "$SSL_EN" -eq 1 ] && https_port=$port http_port="-1" || https_port="-1" http_port=$port
+    [ "$LOG_EN" -eq 1 ] && log=true || log=false
+    if [ -e /proc/uptime ]; then
+	[ $(awk -F. '{print $1}' /proc/uptime) -lt "120" ] && delayed_start=$delayed_start || delayed_start=0
+    else
+	delayed_start=$delayed_start
+    fi
 
     cat /dev/null > $TMPDIR/server.log
     cat /dev/null > $TMPDIR/alist.log
     cat > $PROGDIR/config.json << EOF
 {
   "force": false,
-  "address": "$ADDR",
-  "port": $PORT,
-  "jwt_secret": "random generated",
-  "token_expires_in": 48,
   "site_url": "",
+  "jwt_secret": "admin123",
+  "token_expires_in": 48,
   "cdn": "",
   "database": {
     "type": "sqlite3",
@@ -59,19 +64,27 @@ start() {
     "ssl_mode": ""
   },
   "scheme": {
-    "https": $SSL_EN,
+    "address": "$ADDR",
+    "http_port": $http_port,
+    "https_port": $https_port,
+    "force_https": false,
     "cert_file": "$SSL_CERT",
     "key_file": "$SSL_KEY"
+    "unix_file": "/var/alist.sock"
   },
   "temp_dir": "$TMPDIR",
+  "bleve_dir": "$PROGDIR/bleve",
   "log": {
-    "enable": $LOG_EN,
+    "enable": $log,
     "name": "$TMPDIR/server.log",
     "max_size": 10,
     "max_backups": 5,
     "max_age": 28,
     "compress": false
-  }
+  },
+  "delayed_start": $delayed_start,
+  "max_connections": 0,
+  "tls_insecure_skip_verify": true
 }
 EOF
 

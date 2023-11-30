@@ -69,8 +69,7 @@ start() {
     "https_port": $https_port,
     "force_https": false,
     "cert_file": "$SSL_CERT",
-    "key_file": "$SSL_KEY",
-    "unix_file": "/var/alist.sock"
+    "key_file": "$SSL_KEY"
   },
   "temp_dir": "$TMPDIR",
   "bleve_dir": "$PROGDIR/bleve",

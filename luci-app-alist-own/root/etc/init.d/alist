@@ -37,7 +37,7 @@ start() {
     	mkdir -p $TMPDIR
     	[ "$SSL_EN" -eq 1 ] && https_port=$PORT http_port="-1" || https_port="-1" http_port=$PORT
     	[ "$LOG_EN" -eq 1 ] && log=true || log=false
-    	if [ -e /proc/uptime ]; then
+	if [ -e /proc/uptime ]; then
 		[ $(awk -F. '{print $1}' /proc/uptime) -lt "120" ] && delayed_start=$delayed_start || delayed_start=0
 	else
 		delayed_start=$delayed_start

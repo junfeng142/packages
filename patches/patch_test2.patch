@@ -1175,3 +1175,1602 @@ diff -uprN a/package/network/utils/iptables/patches/900-bcm-fullconenat.patch b/
 + }
 + 
 + static int MASQUERADE_xlate(struct xt_xlate *xl,
+diff -uprN a/target/linux/ipq40xx/base-files/etc/board.d/01_leds b/target/linux/ipq40xx/base-files/etc/board.d/01_leds
+--- a/target/linux/ipq40xx/base-files/etc/board.d/01_leds	2023-12-29 12:26:46.815512508 +0800
++++ b/target/linux/ipq40xx/base-files/etc/board.d/01_leds	2023-12-29 12:25:59.517270413 +0800
+@@ -59,11 +59,6 @@ engenius,ens620ext)
+ 	ucidef_set_led_switch "lan1" "LAN1" "green:lan1" "switch0" "0x10"
+ 	ucidef_set_led_switch "lan2" "LAN2" "green:lan2" "switch0" "0x20"
+ 	;;
+-hugo,ac1200)
+-	ucidef_set_led_default "green" "GREEN" "green:ctrl1" "1"
+-	ucidef_set_led_default "red" "RED" "red:ctrl2" "1"
+-	ucidef_set_led_default "blue" "BLUE" "blue:ctrl3" "1"
+-	;;
+ mobipromo,cm520-79f)
+ 	ucidef_set_led_switch "wan" "WAN" "blue:wan" "switch0" "0x20"
+ 	ucidef_set_led_switch "lan1" "LAN1" "blue:lan1" "switch0" "0x10"
+diff -uprN a/target/linux/ipq40xx/base-files/etc/board.d/02_network b/target/linux/ipq40xx/base-files/etc/board.d/02_network
+--- a/target/linux/ipq40xx/base-files/etc/board.d/02_network	2023-12-29 12:26:46.803512954 +0800
++++ b/target/linux/ipq40xx/base-files/etc/board.d/02_network	2023-12-29 12:25:59.517270413 +0800
+@@ -69,6 +69,7 @@ ipq40xx_setup_interfaces()
+ 		ucidef_add_switch "switch0" \
+ 			"0t@eth0" "3:lan" "4:lan"
+ 		;;
++	glinet,gl-a1300|\
+ 	glinet,gl-b1300|\
+ 	glinet,gl-s1300|\
+ 	qxwlan,e2600ac-c1|\
+@@ -76,17 +77,14 @@ ipq40xx_setup_interfaces()
+ 		ucidef_add_switch "switch0" \
+ 			"0t@eth0" "3:lan" "4:lan" "5:wan"
+ 		;;
+-	hiwifi,c526a)
++	hiwifi,c526a|\
++	zte,mf263)
+ 		ucidef_add_switch "switch0" \
+ 			"0t@eth0" "2:lan" "3:lan" "4:lan" "5:wan"
+ 		;;
+-	hugo,ac1200)
++	leguang,ca100)
+ 		ucidef_add_switch "switch0" \
+-			"0t@eth0" "5:wan" "3:lan"
+-		;;
+-	zte,mf263)
+-		ucidef_add_switch "switch0" \
+-			"0t@eth0" "2:lan" "3:lan" "4:lan" "5:wan"
++			"0t@eth0" "3:lan" "5:wan"
+ 		;;
+ 	mobipromo,cm520-79f)
+ 		ucidef_add_switch "switch0" \
+diff -uprN a/target/linux/ipq40xx/base-files/etc/hotplug.d/firmware/11-ath10k-caldata b/target/linux/ipq40xx/base-files/etc/hotplug.d/firmware/11-ath10k-caldata
+--- a/target/linux/ipq40xx/base-files/etc/hotplug.d/firmware/11-ath10k-caldata	2023-12-29 12:26:46.819512358 +0800
++++ b/target/linux/ipq40xx/base-files/etc/hotplug.d/firmware/11-ath10k-caldata	2023-12-29 12:25:59.549269225 +0800
+@@ -61,6 +61,7 @@ case "$FIRMWARE" in
+ 	ezviz,cs-w3-wd1200g-eup |\
+ 	glinet,gl-b1300 |\
+ 	glinet,gl-s1300 |\
++	leguang,ca100 |\
+ 	linksys,ea6350v3 |\
+ 	mobipromo,cm520-79f |\
+ 	p2w,r619ac |\
+@@ -104,7 +105,6 @@ case "$FIRMWARE" in
+ 	compex,wpj428 |\
+ 	engenius,eap1300 |\
+ 	engenius,eap2200 |\
+-	hugo,ac1200 |\
+ 	openmesh,a42 |\
+ 	openmesh,a62 |\
+ 	qxwlan,e2600ac-c1 |\
+@@ -169,6 +169,7 @@ case "$FIRMWARE" in
+ 	ezviz,cs-w3-wd1200g-eup |\
+ 	glinet,gl-b1300 |\
+ 	glinet,gl-s1300 |\
++	leguang,ca100 |\
+ 	linksys,ea6350v3 |\
+ 	mobipromo,cm520-79f |\
+ 	p2w,r619ac |\
+@@ -210,7 +211,6 @@ case "$FIRMWARE" in
+ 	compex,wpj419 |\
+ 	compex,wpj428 |\
+ 	engenius,eap1300 |\
+-	hugo,ac1200 |\
+ 	engenius,eap2200 |\
+ 	openmesh,a42 |\
+ 	openmesh,a62 |\
+diff -uprN a/target/linux/ipq40xx/base-files/lib/upgrade/platform.sh b/target/linux/ipq40xx/base-files/lib/upgrade/platform.sh
+--- a/target/linux/ipq40xx/base-files/lib/upgrade/platform.sh	2023-12-29 12:26:46.819512358 +0800
++++ b/target/linux/ipq40xx/base-files/lib/upgrade/platform.sh	2023-12-29 12:25:59.549269225 +0800
+@@ -180,9 +180,11 @@ platform_do_upgrade() {
+ 	buffalo,wtr-m2133hp |\
+ 	century,wr142ac-nand |\
+ 	cilab,meshpoint-one |\
++	glinet,gl-a1300 |\
+ 	hiwifi,c526a |\
+ 	mobipromo,cm520-79f |\
+-	qxwlan,e2600ac-c2)
++	qxwlan,e2600ac-c2 |\
++	zte,mf263)
+ 		nand_do_upgrade "$1"
+ 		;;
+ 	alfa-network,ap120c-ac)
+@@ -212,10 +214,6 @@ platform_do_upgrade() {
+ 			asus_nand_upgrade_tar 20951040 "$1"
+ 		fi
+ 		;;
+-	zte,mf263)
+-		PART_NAME=rootfs
+-		nand_do_upgrade "$1"
+-		;;
+ 	cellc,rtl30vw)
+ 		CI_UBIPART="ubifs"
+ 		askey_do_upgrade "$1"
+diff -uprN a/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4018-gl-a1300.dts b/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4018-gl-a1300.dts
+--- a/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4018-gl-a1300.dts	1970-01-01 08:00:00.000000000 +0800
++++ b/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4018-gl-a1300.dts	2023-12-29 12:25:59.553269076 +0800
+@@ -0,0 +1,310 @@
++// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
++
++#include "qcom-ipq4019.dtsi"
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++#include <dt-bindings/soc/qcom,tcsr.h>
++
++/ {
++	model = "GL.iNet GL-A1300";
++	compatible = "glinet,gl-a1300", "qcom,ipq4019";
++
++	aliases {
++		led-boot = &led_run;
++		led-failsafe = &led_run;
++		led-running = &led_run;
++		led-upgrade = &led_run;
++	};
++
++	chosen {
++		bootargs-append = " ubi.mtd=ubi root=/dev/ubiblock0_1";
++	};
++
++	soc {
++		rng@22000 {
++			status = "okay";
++		};
++
++		mdio@90000 {
++			status = "okay";
++		};
++
++		ess-psgmii@98000 {
++			status = "okay";
++		};
++
++		tcsr@1949000 {
++			compatible = "qcom,tcsr";
++			reg = <0x1949000 0x100>;
++			qcom,wifi_glb_cfg = <TCSR_WIFI_GLB_CFG>;
++		};
++
++		tcsr@194b000 {
++			compatible = "qcom,tcsr";
++			reg = <0x194b000 0x100>;
++			qcom,usb-hsphy-mode-select = <TCSR_USB_HSPHY_HOST_MODE>;
++			status = "okay";
++		};
++
++		ess_tcsr@1953000 {
++			compatible = "qcom,tcsr";
++			reg = <0x1953000 0x1000>;
++			qcom,ess-interface-select = <TCSR_ESS_PSGMII>;
++		};
++
++		tcsr@1957000 {
++			compatible = "qcom,tcsr";
++			reg = <0x1957000 0x100>;
++			qcom,wifi_noc_memtype_m0_m2 = <TCSR_WIFI_NOC_MEMTYPE_M0_M2>;
++		};
++
++		usb2@60f8800 {
++			status = "okay";
++		};
++
++		usb3@8af8800 {
++			status = "okay";
++		};
++
++		crypto@8e3a000 {
++			status = "okay";
++		};
++
++		watchdog@b017000 {
++			status = "okay";
++		};
++
++		ess-switch@c000000 {
++			status = "okay";
++			switch_lan_bmp = <0x18>;
++			switch_wan_bmp = <0x20>;
++		};
++
++		edma@c080000 {
++			status = "okay";
++		};
++	};
++
++	keys {
++		compatible = "gpio-keys";
++
++		reset {
++			label = "reset";
++			gpios = <&tlmm 63 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++		};
++
++		switch {
++			label = "switch-button";
++			gpios = <&tlmm 0 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_SETUP>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led_run: blue {
++			label = "blue:status";
++			gpios = <&tlmm 2 GPIO_ACTIVE_HIGH>;
++		};
++
++		white {
++			label = "white:status";
++			gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
++		};
++	};
++
++	gpio_export {
++		compatible = "gpio-export";
++
++		usb {
++			gpio-export,name = "usb_power";
++			gpio-export,output = <1>;
++			gpios = <&tlmm 4 GPIO_ACTIVE_HIGH>;
++		};
++	};
++};
++
++&blsp_dma {
++	status = "okay";
++};
++
++&cryptobam {
++	status = "okay";
++};
++
++&blsp1_spi1 {
++	status = "okay";
++
++	pinctrl-0 = <&spi0_pins>;
++	pinctrl-names = "default";
++	cs-gpios = <&tlmm 54 GPIO_ACTIVE_HIGH>, <&tlmm 5 GPIO_ACTIVE_HIGH>;
++
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <24000000>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "SBL1";
++				reg = <0x00000000 0x00040000>;
++				read-only;
++			};
++
++			partition@40000 {
++				label = "MIBIB";
++				reg = <0x00040000 0x00020000>;
++				read-only;
++			};
++
++			partition@60000 {
++				label = "QSEE";
++				reg = <0x00060000 0x00060000>;
++				read-only;
++			};
++
++			partition@c0000 {
++				label = "CDT";
++				reg = <0x000c0000 0x00010000>;
++				read-only;
++			};
++
++			partition@d0000 {
++				label = "DDRPARAMS";
++				reg = <0x000d0000 0x00010000>;
++				read-only;
++			};
++
++			partition@e0000 {
++				label = "APPSBLENV"; /* uboot env*/
++				reg = <0x000e0000 0x00010000>;
++			};
++
++			partition@f0000 {
++				label = "APPSBL"; /* uboot */
++				reg = <0x000f0000 0x00080000>;
++				read-only;
++			};
++
++			partition@170000 {
++				label = "ART";
++				reg = <0x00170000 0x00010000>;
++				read-only;
++				compatible = "nvmem-cells";
++
++				precal_art_1000: precal@1000 {
++					reg = <0x1000 0x2f20>;
++				};
++
++				precal_art_5000: precal@5000 {
++					reg = <0x5000 0x2f20>;
++				};
++
++				macaddr_gmac0: macaddr@0 {
++					reg = <0x0 0x6>;
++				};
++
++				macaddr_gmac1: macaddr@6 {
++					reg = <0x6 0x6>;
++				};
++			};
++
++			partition@180000 {
++				label = "log";
++				reg = <0x00180000 0x00020000>;
++			};
++		};
++	};
++
++	spi-nand@1 {
++		compatible = "spi-nand";
++		reg = <1>;
++		spi-max-frequency = <24000000>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "ubi";
++				reg = <0x00000000 0x08000000>;
++			};
++		};
++	};
++};
++
++&blsp1_uart1 {
++	pinctrl-0 = <&serial_pins>;
++	pinctrl-names = "default";
++	status = "okay";
++};
++
++&tlmm {
++	serial_pins: serial_pinmux {
++		mux {
++			pins = "gpio60", "gpio61";
++			function = "blsp_uart0";
++			bias-disable;
++		};
++	};
++
++	i2c_0_pins: i2c_0_pinmux {
++		pinmux {
++			pins = "gpio58", "gpio59";
++			function = "blsp_i2c0";
++			bias-disable;
++		};
++	};
++
++	spi0_pins: spi0_pinmux {
++		mux_spi {
++			function = "blsp_spi0";
++			pins = "gpio55", "gpio56", "gpio57";
++			drive-strength = <12>;
++			bias-disable;
++		};
++
++		mux_cs {
++			function = "gpio";
++			pins = "gpio54", "gpio5";
++			drive-strength = <2>;
++			bias-disable;
++			output-high;
++		};
++	};
++};
++
++&blsp1_i2c3 {
++	pinctrl-0 = <&i2c_0_pins>;
++	pinctrl-names = "default";
++	status = "okay";
++};
++
++&usb2_hs_phy {
++	status = "okay";
++};
++
++&usb3_hs_phy {
++	status = "okay";
++};
++
++&usb3_ss_phy {
++	status = "okay";
++};
++
++&wifi0 {
++	status = "okay";
++	qcom,ath10k-calibration-variant = "GL-A1300";
++};
++
++&wifi1 {
++	status = "okay";
++	qcom,ath10k-calibration-variant = "GL-A1300";
++};
+diff -uprN a/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4019-ca100.dts b/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4019-ca100.dts
+--- a/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4019-ca100.dts	1970-01-01 08:00:00.000000000 +0800
++++ b/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4019-ca100.dts	2023-12-29 12:25:59.549269225 +0800
+@@ -0,0 +1,240 @@
++// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
++
++#include "qcom-ipq4019.dtsi"
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++#include <dt-bindings/soc/qcom,tcsr.h>
++
++/ {
++	model = "LEGUANG CA100";
++	compatible = "leguang,ca100", "qcom,ipq4019";
++
++	aliases {
++		led-boot = &led_status_blue;
++		led-failsafe = &led_status_red;
++		led-running = &led_status_blue;
++		led-upgrade = &led_status_green;
++	};
++
++	soc {
++		rng@22000 {
++			status = "okay";
++		};
++
++		mdio@90000 {
++			status = "okay";
++			pinctrl-0 = <&mdio_pins>;
++			pinctrl-names = "default";
++		};
++
++		ess-psgmii@98000 {
++			status = "okay";
++		};
++
++		tcsr@1949000 {
++			compatible = "qcom,tcsr";
++			reg = <0x1949000 0x100>;
++			qcom,wifi_glb_cfg = <TCSR_WIFI_GLB_CFG>;
++		};
++
++		tcsr@194b000 {
++			compatible = "qcom,tcsr";
++			reg = <0x194b000 0x100>;
++			qcom,usb-hsphy-mode-select = <TCSR_USB_HSPHY_HOST_MODE>;
++			status = "okay";
++		};
++
++		ess_tcsr@1953000 {
++			compatible = "qcom,tcsr";
++			reg = <0x1953000 0x1000>;
++			qcom,ess-interface-select = <TCSR_ESS_PSGMII>;
++		};
++
++		tcsr@1957000 {
++			compatible = "qcom,tcsr";
++			reg = <0x1957000 0x100>;
++			qcom,wifi_noc_memtype_m0_m2 = <TCSR_WIFI_NOC_MEMTYPE_M0_M2>;
++		};
++
++		crypto@8e3a000 {
++			status = "okay";
++		};
++
++		watchdog@b017000 {
++			status = "okay";
++		};
++
++		ess-switch@c000000 {
++			status = "okay";
++		};
++
++		edma@c080000 {
++			status = "okay";
++		};
++	};
++
++	keys {
++		compatible = "gpio-keys";
++
++		reset {
++			label = "reset";
++			gpios = <&tlmm 18 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led_status_green: status-green {
++			label = "green:status";
++			gpios = <&tlmm 44 GPIO_ACTIVE_LOW>;
++		};
++
++		led_status_red: status-red {
++			label = "red:status";
++			gpios = <&tlmm 45 GPIO_ACTIVE_LOW>;
++		};
++
++		led_status_blue: status-blue {
++			label = "blue:status";
++			gpios = <&tlmm 46 GPIO_ACTIVE_LOW>;
++		};
++	};
++};
++
++&blsp_dma {
++	status = "okay";
++};
++
++&blsp1_spi1 {
++	pinctrl-0 = <&spi_0_pins>;
++	pinctrl-names = "default";
++	status = "okay";
++	cs-gpios = <&tlmm 12 GPIO_ACTIVE_HIGH>;
++
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <24000000>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "SBL1";
++				reg = <0x0 0x40000>;
++				read-only;
++			};
++
++			partition@40000 {
++				label = "MIBIB";
++				reg = <0x40000 0x20000>;
++				read-only;
++			};
++
++			partition@60000 {
++				label = "QSEE";
++				reg = <0x60000 0x60000>;
++				read-only;
++			};
++
++			partition@c0000 {
++				label = "CDT";
++				reg = <0xc0000 0x10000>;
++				read-only;
++			};
++
++			partition@d0000 {
++				label = "DDRPARAMS";
++				reg = <0xd0000 0x10000>;
++				read-only;
++			};
++
++			partition@e0000 {
++				label = "APPSBLENV";
++				reg = <0xe0000 0x10000>;
++				read-only;
++			};
++
++			partition@f0000 {
++				label = "APPSBL";
++				reg = <0xf0000 0x80000>;
++				read-only;
++			};
++
++			partition@170000 {
++				label = "ART";
++				reg = <0x170000 0x10000>;
++				read-only;
++			};
++
++			partition@180000 {
++				compatible = "denx,fit";
++				label = "firmware";
++				reg = <0x180000 0x1e80000>;
++			};
++		};
++	};
++};
++
++&blsp1_uart1 {
++	pinctrl-0 = <&serial_pins>;
++	pinctrl-names = "default";
++	status = "okay";
++};
++
++&cryptobam {
++	status = "okay";
++};
++
++&tlmm {
++	mdio_pins: mdio_pinmux {
++		mux_1 {
++			pins = "gpio6";
++			function = "mdio";
++			bias-pull-up;
++		};
++
++		mux_2 {
++			pins = "gpio7";
++			function = "mdc";
++			bias-pull-up;
++		};
++	};
++
++	serial_pins: serial_pinmux {
++		mux {
++			pins = "gpio16", "gpio17";
++			function = "blsp_uart0";
++			bias-disable;
++		};
++	};
++
++	spi_0_pins: spi_0_pinmux {
++		pinmux {
++			function = "blsp_spi0";
++			pins = "gpio13", "gpio14", "gpio15";
++			drive-strength = <12>;
++			bias-disable;
++		};
++
++		pinmux_cs {
++			function = "gpio";
++			pins = "gpio12";
++			drive-strength = <2>;
++			bias-disable;
++			output-high;
++		};
++	};
++};
++
++&wifi0 {
++	status = "okay";
++};
++
++&wifi1 {
++	status = "okay";
++};
+diff -uprN a/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4019-hugo-ac1200.dts b/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4019-hugo-ac1200.dts
+--- a/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4019-hugo-ac1200.dts	2023-12-29 12:26:46.827512061 +0800
++++ b/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4019-hugo-ac1200.dts	1970-01-01 08:00:00.000000000 +0800
+@@ -1,324 +0,0 @@
+-/*
+- * Copyright (c) 2019 Hugo Yuan <hugolxq@gmail.com>
+- */
+-
+-#include "qcom-ipq4019.dtsi"
+-#include <dt-bindings/gpio/gpio.h>
+-#include <dt-bindings/input/input.h>
+-#include <dt-bindings/soc/qcom,tcsr.h>
+-
+-/ {
+-	model = "Hugo AC1200";
+-	compatible = "hugo,ac1200", "qcom,ipq4019";
+-
+-	memory {
+-		device_type = "memory";
+-		reg = <0x80000000 0x10000000>; /* 256MB */
+-	};
+-
+-	aliases {
+-		led-boot = &power;
+-		led-failsafe = &power;
+-		led-running = &power;
+-		led-upgrade = &power;
+-	};
+-
+-	soc {
+-		mdio@90000 {
+-			status = "okay";
+-			pinctrl-0 = <&mdio_pins>;
+-			pinctrl-names = "default";
+-		};
+-
+-		ess-psgmii@98000 {
+-			status = "okay";
+-		};
+-
+-		tcsr@1949000 {
+-			compatible = "qcom,tcsr";
+-			reg = <0x1949000 0x100>;
+-			qcom,wifi_glb_cfg = <TCSR_WIFI_GLB_CFG>;
+-		};
+-
+-		tcsr@194b000 {
+-			/* select hostmode */
+-			compatible = "qcom,tcsr";
+-			reg = <0x194b000 0x100>;
+-			qcom,usb-hsphy-mode-select = <TCSR_USB_HSPHY_HOST_MODE>;
+-			status = "okay";
+-		};
+-
+-		ess_tcsr@1953000 {
+-			compatible = "qcom,tcsr";
+-			reg = <0x1953000 0x1000>;
+-			qcom,ess-interface-select = <TCSR_ESS_PSGMII>;
+-		};
+-
+-		tcsr@1957000 {
+-			compatible = "qcom,tcsr";
+-			reg = <0x1957000 0x100>;
+-			qcom,wifi_noc_memtype_m0_m2 = <TCSR_WIFI_NOC_MEMTYPE_M0_M2>;
+-		};
+-
+-		usb2@60f8800 {
+-			status = "okay";
+-
+-			dwc3@6000000 {
+-				#address-cells = <1>;
+-				#size-cells = <0>;
+-
+-				usb2_port1: port@1 {
+-					reg = <1>;
+-					#trigger-source-cells = <0>;
+-				};
+-			};
+-		};
+-
+-		serial@78af000 {
+-			pinctrl-0 = <&serial_0_pins>;
+-			pinctrl-names = "default";
+-			status = "okay";
+-		};
+-
+-		serial@78b0000 {
+-			pinctrl-0 = <&serial_1_pins>;
+-			pinctrl-names = "default";
+-			status = "okay";
+-		};
+-
+-		i2c@78b7000 { /* BLSP1 QUP2 */
+-			pinctrl-0 = <&i2c_0_pins>;
+-			pinctrl-names = "default";
+-
+-			status = "okay";
+-		};
+-
+-		usb3: usb3@8af8800 {
+-			status = "okay";
+-
+-			dwc3@8a00000 {
+-				#address-cells = <1>;
+-				#size-cells = <0>;
+-
+-				usb3_port1: port@1 {
+-					reg = <1>;
+-					#trigger-source-cells = <0>;
+-				};
+-
+-				usb3_port2: port@2 {
+-					reg = <2>;
+-					#trigger-source-cells = <0>;
+-				};
+-			};
+-		};
+-
+-		crypto@8e3a000 {
+-			status = "okay";
+-		};
+-
+-		watchdog@b017000 {
+-			status = "okay";
+-		};
+-
+-		ess-switch@c000000 {
+-			status = "okay";
+-		};
+-
+-		edma@c080000 {
+-			status = "okay";
+-		};
+-
+-		leds {
+-			compatible = "gpio-leds";
+-
+-			led1 {
+-				label = "green:ctrl1";
+-				gpios = <&tlmm 44 GPIO_ACTIVE_LOW>;
+-			};
+-
+-			led2 {
+-				label = "red:ctrl2";
+-				gpios = <&tlmm 45 GPIO_ACTIVE_LOW>;
+-			};
+-
+-			power: led3 {
+-				label = "blue:ctrl3";
+-				gpios = <&tlmm 46 GPIO_ACTIVE_LOW>;
+-			};
+-		};
+-
+-		keys {
+-			compatible = "gpio-keys";
+-
+-			reset {
+-				label = "reset";
+-				gpios = <&tlmm 18 GPIO_ACTIVE_LOW>;
+-				linux,code = <KEY_RESTART>;
+-			};
+-		};
+-	};
+-};
+-
+-&blsp_dma {
+-	status = "okay";
+-};
+-
+-&blsp1_spi1 {
+-	pinctrl-0 = <&spi_0_pins>;
+-	pinctrl-names = "default";
+-	status = "okay";
+-	cs-gpios = <&tlmm 12 GPIO_ACTIVE_LOW>;
+-
+-	flash@0 {
+-		reg = <0>;
+-		compatible = "jedec,spi-nor";
+-		spi-max-frequency = <24000000>;
+-
+-		partitions {
+-			compatible = "fixed-partitions";
+-			#address-cells = <1>;
+-			#size-cells = <1>;
+-
+-			partition@0 {
+-				label = "0:SBL1";
+-				reg = <0x0 0x40000>;
+-				read-only;
+-			};
+-
+-			partition@40000 {
+-				label = "0:MIBIB";
+-				reg = <0x40000 0x20000>;
+-				read-only;
+-			};
+-
+-			partition@60000 {
+-				label = "0:QSEE";
+-				reg = <0x60000 0x60000>;
+-				read-only;
+-			};
+-
+-			partition@c0000 {
+-				label = "0:CDT";
+-				reg = <0xc0000 0x10000>;
+-				read-only;
+-			};
+-
+-			partition@d0000 {
+-				label = "0:DDRPARAMS";
+-				reg = <0xd0000 0x10000>;
+-				read-only;
+-			};
+-
+-			partition@e0000 {
+-				label = "0:APPSBLENV";
+-				reg = <0xe0000 0x10000>;
+-				read-only;
+-			};
+-
+-			partition@f0000 {
+-				label = "0:APPSBL";
+-				reg = <0xf0000 0x80000>;
+-				read-only;
+-			};
+-
+-			partition@170000 {
+-				label = "0:ART";
+-				reg = <0x170000 0x10000>;
+-				read-only;
+-			};
+-
+-			partition@180000 {
+-				compatible = "denx,fit";
+-				label = "firmware";
+-				reg = <0x180000 0x1e80000>;
+-			};
+-		};
+-	};
+-};
+-
+-&cryptobam {
+-	status = "okay";
+-};
+-
+-&qpic_bam {
+-	status = "okay";
+-};
+-
+-&tlmm {
+-	i2c_0_pins: i2c-0-pinmux {
+-		mux {
+-			pins = "gpio20", "gpio21";
+-			function = "blsp_i2c0";
+-			bias-disable;
+-		};
+-	};
+-
+-	mdio_pins: mdio_pinmux {
+-		mux_1 {
+-			pins = "gpio6";
+-			function = "mdio";
+-			bias-pull-up;
+-		};
+-
+-		mux_2 {
+-			pins = "gpio7";
+-			function = "mdc";
+-			bias-pull-up;
+-		};
+-	};
+-
+-	serial_0_pins: serial0-pinmux {
+-		mux {
+-			pins = "gpio16", "gpio17";
+-			function = "blsp_uart0";
+-			bias-disable;
+-		};
+-	};
+-
+-	serial_1_pins: serial1_pinmux {
+-		mux {
+-			pins = "gpio8", "gpio9";
+-			function = "blsp_uart1";
+-			bias-disable;
+-		};
+-	};
+-
+-	spi_0_pins: spi_0_pinmux {
+-		pinmux {
+-			function = "blsp_spi0";
+-			pins = "gpio13", "gpio14", "gpio15";
+-			drive-strength = <12>;
+-			bias-disable;
+-		};
+-
+-		pinmux_cs {
+-			function = "gpio";
+-			pins = "gpio12";
+-			drive-strength = <2>;
+-			bias-disable;
+-			output-high;
+-		};
+-	};
+-};
+-
+-&usb3_ss_phy {
+-	status = "okay";
+-};
+-
+-&usb3_hs_phy {
+-	status = "okay";
+-};
+-
+-&usb2_hs_phy {
+-	status = "okay";
+-};
+-
+-&wifi0 {
+-	status = "okay";
+-	qcom,ath10k-calibration-variant = "hugo_ac1200";
+-};
+-
+-&wifi1 {
+-	status = "okay";
+-	qcom,ath10k-calibration-variant = "hugo_ac1200";
+-};
+diff -uprN a/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4029-gl-s1300.dts b/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4029-gl-s1300.dts
+--- a/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4029-gl-s1300.dts	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/files/arch/arm/boot/dts/qcom-ipq4029-gl-s1300.dts	2023-12-29 12:25:59.549269225 +0800
+@@ -224,7 +224,7 @@
+ 	status = "okay";
+ 
+ 	spidev1: spi@0 {
+-		compatible = "siliconlabs,si3210";
++		compatible = "silabs,si3210";
+ 		reg = <0>;
+ 		spi-max-frequency = <24000000>;
+ 	};
+diff -uprN a/target/linux/ipq40xx/files/drivers/net/ethernet/qualcomm/essedma/edma_axi.c b/target/linux/ipq40xx/files/drivers/net/ethernet/qualcomm/essedma/edma_axi.c
+--- a/target/linux/ipq40xx/files/drivers/net/ethernet/qualcomm/essedma/edma_axi.c	2023-12-29 12:26:46.815512508 +0800
++++ b/target/linux/ipq40xx/files/drivers/net/ethernet/qualcomm/essedma/edma_axi.c	2023-12-29 12:25:59.529269967 +0800
+@@ -904,8 +904,6 @@ static int edma_axi_probe(struct platfor
+ 	}
+ 
+ 	for_each_available_child_of_node(np, pnp) {
+-		const char *mac_addr;
+-
+ 		/* this check is needed if parent and daughter dts have
+ 		 * different number of gmac nodes
+ 		 */
+@@ -914,9 +912,7 @@ static int edma_axi_probe(struct platfor
+ 			break;
+ 		}
+ 
+-		mac_addr = of_get_mac_address(pnp);
+-		if (!IS_ERR(mac_addr))
+-			memcpy(edma_netdev[idx_mac]->dev_addr, mac_addr, ETH_ALEN);
++		of_get_mac_address(pnp, edma_netdev[idx_mac]->dev_addr);
+ 
+ 		idx_mac++;
+ 	}
+diff -uprN a/target/linux/ipq40xx/image/Makefile b/target/linux/ipq40xx/image/Makefile
+--- a/target/linux/ipq40xx/image/Makefile	2023-12-29 12:26:46.787513548 +0800
++++ b/target/linux/ipq40xx/image/Makefile	2023-12-29 12:25:59.525270116 +0800
+@@ -484,6 +484,21 @@ define Device/ezviz_cs-w3-wd1200g-eup
+ endef
+ TARGET_DEVICES += ezviz_cs-w3-wd1200g-eup
+ 
++define Device/glinet_gl-a1300
++	$(call Device/FitImage)
++	$(call Device/UbiFit)
++	DEVICE_VENDOR := GL.iNet
++	DEVICE_MODEL := GL-A1300
++	BOARD_NAME := gl-a1300
++	DEVICE_DTS := qcom-ipq4018-gl-a1300
++	DEVICE_DTS_CONFIG := config@ap.dk01.1-c2
++	BLOCKSIZE := 128k
++	PAGESIZE := 2048
++	IMAGE_SIZE := 131072k
++	DEVICE_PACKAGE := ipq-wifi-glinet_gl-a1300
++endef
++TARGET_DEVICES += glinet_gl-a1300
++
+ define Device/glinet_gl-b1300
+ 	$(call Device/FitImage)
+ 	DEVICE_VENDOR := GL.iNet
+@@ -521,18 +536,16 @@ define Device/hiwifi_c526a
+ endef
+ TARGET_DEVICES += hiwifi_c526a
+ 
+-define Device/hugo_ac1200
+-	$(call Device/FitImage)
+-	DEVICE_VENDOR := Hugo
+-	DEVICE_MODEL := AC1200
+-	BOARD_NAME := hugo_ac1200
+-	DEVICE_DTS := qcom-ipq4019-hugo-ac1200
++define Device/leguang_ca100
++	$(call Device/FitzImage)
++	DEVICE_VENDOR := LEGUANG
++	DEVICE_MODEL := CA100
++	DEVICE_DTS := qcom-ipq4019-ca100
+ 	KERNEL_SIZE := 4096k
+ 	IMAGE_SIZE := 31232k
+ 	IMAGE/sysupgrade.bin := append-kernel | append-rootfs | pad-rootfs | append-metadata
+-	DEVICE_PACKAGES := ipq-wifi-hugo_ac1200
+ endef
+-TARGET_DEVICES += hugo_ac1200
++TARGET_DEVICES += leguang_ca100
+ 
+ define Device/linksys_ea6350v3
+ 	# The Linksys EA6350v3 has a uboot bootloader that does not
+@@ -704,20 +717,6 @@ define Device/p2w_r619ac-128m
+ endef
+ TARGET_DEVICES += p2w_r619ac-128m
+ 
+-define Device/zte_mf263
+-	$(call Device/FitzImage)
+-	$(call Device/UbiFit)
+-	DEVICE_VENDOR := ZTE
+-	DEVICE_MODEL := MF263
+-	DEVICE_DTS := qcom-ipq4019-zte-mf263
+-	BLOCKSIZE := 128k
+-	PAGESIZE := 2048
+-	IMAGE/factory.img := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi
+-	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+-	DEVICE_PACKAGES := -kmod-ath10k-ct -ath10k-firmware-qca4019-ct kmod-ath10k ath10k-firmware-qca4019 ipq-wifi-zte_mf263
+-endef
+-TARGET_DEVICES += zte_mf263
+-
+ define Device/qcom_ap-dk01.1-c1
+ 	DEVICE_VENDOR := Qualcomm Atheros
+ 	DEVICE_MODEL := AP-DK01.1
+@@ -788,6 +787,20 @@ define Device/unielec_u4019-32m
+ endef
+ TARGET_DEVICES += unielec_u4019-32m
+ 
++define Device/zte_mf263
++	$(call Device/FitzImage)
++	$(call Device/UbiFit)
++	DEVICE_VENDOR := ZTE
++	DEVICE_MODEL := MF263
++	DEVICE_DTS := qcom-ipq4019-zte-mf263
++	BLOCKSIZE := 128k
++	PAGESIZE := 2048
++	IMAGE/factory.img := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi
++	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
++	DEVICE_PACKAGES := ipq-wifi-zte_mf263
++endef
++TARGET_DEVICES += zte_mf263
++
+ define Device/zyxel_nbg6617
+ 	$(call Device/FitImageLzma)
+ 	DEVICE_VENDOR := ZyXEL
+diff -uprN a/target/linux/ipq40xx/Makefile b/target/linux/ipq40xx/Makefile
+--- a/target/linux/ipq40xx/Makefile	2023-12-29 12:26:46.759514588 +0800
++++ b/target/linux/ipq40xx/Makefile	2023-12-29 12:25:59.517270413 +0800
+@@ -18,6 +18,8 @@ DEFAULT_PACKAGES += \
+ 	kmod-leds-gpio kmod-gpio-button-hotplug swconfig \
+ 	kmod-ath10k-ct wpad-openssl uboot-envtools \
+ 	kmod-usb3 kmod-usb-dwc3 ath10k-firmware-qca4019-ct \
+-	autocore-arm ethtool htop luci-app-cpufreq \
++	autocore-arm automount autosamba ethtool htop \
++	luci-app-adbyby-plus luci-app-cpufreq luci-app-ipsec-vpnd \
++	luci-app-unblockmusic luci-app-zerotier
+ 
+ $(eval $(call BuildTarget))
+diff -uprN a/target/linux/ipq40xx/patches-5.4/0002-02-v5.5-ARM-dts-qcom-ipq4019-Add-SDHCI-controller-node.patch b/target/linux/ipq40xx/patches-5.4/0002-02-v5.5-ARM-dts-qcom-ipq4019-Add-SDHCI-controller-node.patch
+--- a/target/linux/ipq40xx/patches-5.4/0002-02-v5.5-ARM-dts-qcom-ipq4019-Add-SDHCI-controller-node.patch	2023-12-29 12:26:46.819512358 +0800
++++ b/target/linux/ipq40xx/patches-5.4/0002-02-v5.5-ARM-dts-qcom-ipq4019-Add-SDHCI-controller-node.patch	2023-12-29 12:25:59.553269076 +0800
+@@ -15,7 +15,7 @@ Signed-off-by: Bjorn Andersson <bjorn.an
+ 
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -206,6 +206,18 @@
++@@ -207,6 +207,18 @@
+  			interrupts = <GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>;
+  		};
+  
+diff -uprN a/target/linux/ipq40xx/patches-5.4/0003-v5.6-ARM-dts-qcom-Add-nodes-for-SMP-boot-in-IPQ40xx.patch b/target/linux/ipq40xx/patches-5.4/0003-v5.6-ARM-dts-qcom-Add-nodes-for-SMP-boot-in-IPQ40xx.patch
+--- a/target/linux/ipq40xx/patches-5.4/0003-v5.6-ARM-dts-qcom-Add-nodes-for-SMP-boot-in-IPQ40xx.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/0003-v5.6-ARM-dts-qcom-Add-nodes-for-SMP-boot-in-IPQ40xx.patch	2023-12-29 12:25:59.557268926 +0800
+@@ -56,7 +56,7 @@ Signed-off-by: Bjorn Andersson <bjorn.an
+  		};
+  	};
+  
+-@@ -353,6 +354,12 @@
++@@ -354,6 +355,12 @@
+  			regulator;
+  		};
+  
+diff -uprN a/target/linux/ipq40xx/patches-5.4/0003-v5.7-ARM-dts-qcom-add-gpio-ranges-property.patch b/target/linux/ipq40xx/patches-5.4/0003-v5.7-ARM-dts-qcom-add-gpio-ranges-property.patch
+--- a/target/linux/ipq40xx/patches-5.4/0003-v5.7-ARM-dts-qcom-add-gpio-ranges-property.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/0003-v5.7-ARM-dts-qcom-add-gpio-ranges-property.patch	2023-12-29 12:25:59.557268926 +0800
+@@ -59,7 +59,7 @@ Signed-off-by: Bjorn Andersson <bjorn.an
+  			#interrupt-cells = <2>;
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -201,6 +201,7 @@
++@@ -202,6 +202,7 @@
+  			compatible = "qcom,ipq4019-pinctrl";
+  			reg = <0x01000000 0x300000>;
+  			gpio-controller;
+diff -uprN a/target/linux/ipq40xx/patches-5.4/0004-v5.8-ARM-dts-qcom-ipq4019-fix-high-resolution-timer.patch b/target/linux/ipq40xx/patches-5.4/0004-v5.8-ARM-dts-qcom-ipq4019-fix-high-resolution-timer.patch
+--- a/target/linux/ipq40xx/patches-5.4/0004-v5.8-ARM-dts-qcom-ipq4019-fix-high-resolution-timer.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/0004-v5.8-ARM-dts-qcom-ipq4019-fix-high-resolution-timer.patch	2023-12-29 12:25:59.553269076 +0800
+@@ -23,7 +23,7 @@ Signed-off-by: Bjorn Andersson <bjorn.an
+ 
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -166,6 +166,7 @@
++@@ -167,6 +167,7 @@
+  			     <1 4 0xf08>,
+  			     <1 1 0xf08>;
+  		clock-frequency = <48000000>;
+diff -uprN a/target/linux/ipq40xx/patches-5.4/0005-01-v5.8-net-phy-mdio-add-IPQ4019-MDIO-driver.patch b/target/linux/ipq40xx/patches-5.4/0005-01-v5.8-net-phy-mdio-add-IPQ4019-MDIO-driver.patch
+--- a/target/linux/ipq40xx/patches-5.4/0005-01-v5.8-net-phy-mdio-add-IPQ4019-MDIO-driver.patch	2023-12-29 12:26:46.827512061 +0800
++++ b/target/linux/ipq40xx/patches-5.4/0005-01-v5.8-net-phy-mdio-add-IPQ4019-MDIO-driver.patch	2023-12-29 12:25:59.557268926 +0800
+@@ -37,7 +37,7 @@ Signed-off-by: David S. Miller <davem@da
+  	depends on ARCH_MOXART || COMPILE_TEST
+ --- a/drivers/net/phy/Makefile
+ +++ b/drivers/net/phy/Makefile
+-@@ -50,6 +50,7 @@ obj-$(CONFIG_MDIO_CAVIUM)	+= mdio-cavium
++@@ -52,6 +52,7 @@ obj-$(CONFIG_MDIO_CAVIUM)	+= mdio-cavium
+  obj-$(CONFIG_MDIO_GPIO)		+= mdio-gpio.o
+  obj-$(CONFIG_MDIO_HISI_FEMAC)	+= mdio-hisi-femac.o
+  obj-$(CONFIG_MDIO_I2C)		+= mdio-i2c.o
+diff -uprN a/target/linux/ipq40xx/patches-5.4/0005-02-v5.8-02-ARM-dts-qcom-ipq4019-add-MDIO-node.patch b/target/linux/ipq40xx/patches-5.4/0005-02-v5.8-02-ARM-dts-qcom-ipq4019-add-MDIO-node.patch
+--- a/target/linux/ipq40xx/patches-5.4/0005-02-v5.8-02-ARM-dts-qcom-ipq4019-add-MDIO-node.patch	2023-12-29 12:26:46.819512358 +0800
++++ b/target/linux/ipq40xx/patches-5.4/0005-02-v5.8-02-ARM-dts-qcom-ipq4019-add-MDIO-node.patch	2023-12-29 12:25:59.549269225 +0800
+@@ -21,7 +21,7 @@ Signed-off-by: David S. Miller <davem@da
+ 
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -577,5 +577,33 @@
++@@ -578,5 +578,33 @@
+  					  "legacy";
+  			status = "disabled";
+  		};
+diff -uprN a/target/linux/ipq40xx/patches-5.4/0019-v5.6-mtd-spi-nor-Add-support-for-mx25r3235f.patch b/target/linux/ipq40xx/patches-5.4/0019-v5.6-mtd-spi-nor-Add-support-for-mx25r3235f.patch
+--- a/target/linux/ipq40xx/patches-5.4/0019-v5.6-mtd-spi-nor-Add-support-for-mx25r3235f.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/0019-v5.6-mtd-spi-nor-Add-support-for-mx25r3235f.patch	2023-12-29 12:25:59.557268926 +0800
+@@ -18,7 +18,7 @@ Signed-off-by: Tudor Ambarus <tudor.amba
+ 
+ --- a/drivers/mtd/spi-nor/spi-nor.c
+ +++ b/drivers/mtd/spi-nor/spi-nor.c
+-@@ -2353,6 +2353,8 @@ static const struct flash_info spi_nor_i
++@@ -2356,6 +2356,8 @@ static const struct flash_info spi_nor_i
+  	{ "mx25u6435f",  INFO(0xc22537, 0, 64 * 1024, 128, SECT_4K) },
+  	{ "mx25l12805d", INFO(0xc22018, 0, 64 * 1024, 256, 0) },
+  	{ "mx25l12855e", INFO(0xc22618, 0, 64 * 1024, 256, 0) },
+diff -uprN a/target/linux/ipq40xx/patches-5.4/101-arm-dts-IPQ4019-add-SDHCI-VQMMC-LDO-node.patch b/target/linux/ipq40xx/patches-5.4/101-arm-dts-IPQ4019-add-SDHCI-VQMMC-LDO-node.patch
+--- a/target/linux/ipq40xx/patches-5.4/101-arm-dts-IPQ4019-add-SDHCI-VQMMC-LDO-node.patch	2023-12-29 12:26:46.791513400 +0800
++++ b/target/linux/ipq40xx/patches-5.4/101-arm-dts-IPQ4019-add-SDHCI-VQMMC-LDO-node.patch	2023-12-29 12:25:59.525270116 +0800
+@@ -13,7 +13,7 @@ Signed-off-by: Robert Marko <robert.mark
+ 
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -209,6 +209,16 @@
++@@ -210,6 +210,16 @@
+  			interrupts = <GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>;
+  		};
+  
+diff -uprN a/target/linux/ipq40xx/patches-5.4/102-ARM-dts-qcom-ipq4019-add-USB-devicetree-nodes.patch b/target/linux/ipq40xx/patches-5.4/102-ARM-dts-qcom-ipq4019-add-USB-devicetree-nodes.patch
+--- a/target/linux/ipq40xx/patches-5.4/102-ARM-dts-qcom-ipq4019-add-USB-devicetree-nodes.patch	2023-12-29 12:26:46.815512508 +0800
++++ b/target/linux/ipq40xx/patches-5.4/102-ARM-dts-qcom-ipq4019-add-USB-devicetree-nodes.patch	2023-12-29 12:25:59.549269225 +0800
+@@ -15,7 +15,7 @@ Reviewed-by: Vinod Koul <vkoul@kernel.or
+ 
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -615,5 +615,79 @@
++@@ -616,5 +616,79 @@
+  				reg = <4>;
+  			};
+  		};
+diff -uprN a/target/linux/ipq40xx/patches-5.4/103-arm-dts-qcom-ipq4019-add-more-labels.patch b/target/linux/ipq40xx/patches-5.4/103-arm-dts-qcom-ipq4019-add-more-labels.patch
+--- a/target/linux/ipq40xx/patches-5.4/103-arm-dts-qcom-ipq4019-add-more-labels.patch	2023-12-29 12:26:46.815512508 +0800
++++ b/target/linux/ipq40xx/patches-5.4/103-arm-dts-qcom-ipq4019-add-more-labels.patch	2023-12-29 12:25:59.549269225 +0800
+@@ -13,7 +13,7 @@ Cc: Luka Perkov <luka.perkov@sartura.hr>
+ 
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -190,7 +190,7 @@
++@@ -191,7 +191,7 @@
+  			reg = <0x1800000 0x60000>;
+  		};
+  
+@@ -22,7 +22,7 @@ Cc: Luka Perkov <luka.perkov@sartura.hr>
+  			compatible = "qcom,prng";
+  			reg = <0x22000 0x140>;
+  			clocks = <&gcc GCC_PRNG_AHB_CLK>;
+-@@ -310,7 +310,7 @@
++@@ -311,7 +311,7 @@
+  			status = "disabled";
+  		};
+  
+@@ -31,7 +31,7 @@ Cc: Luka Perkov <luka.perkov@sartura.hr>
+  			compatible = "qcom,crypto-v5.1";
+  			reg = <0x08e3a000 0x6000>;
+  			clocks = <&gcc GCC_CRYPTO_AHB_CLK>,
+-@@ -396,7 +396,7 @@
++@@ -397,7 +397,7 @@
+  			dma-names = "rx", "tx";
+  		};
+  
+diff -uprN a/target/linux/ipq40xx/patches-5.4/305-spi-nor-add-en25qh16.patch b/target/linux/ipq40xx/patches-5.4/305-spi-nor-add-en25qh16.patch
+--- a/target/linux/ipq40xx/patches-5.4/305-spi-nor-add-en25qh16.patch	2023-12-29 12:26:46.815512508 +0800
++++ b/target/linux/ipq40xx/patches-5.4/305-spi-nor-add-en25qh16.patch	2023-12-29 12:25:59.549269225 +0800
+@@ -1,7 +1,7 @@
+ --- a/drivers/mtd/spi-nor/spi-nor.c
+ +++ b/drivers/mtd/spi-nor/spi-nor.c
+-@@ -2240,6 +2240,8 @@ static const struct flash_info spi_nor_i
+- 	{ "en25q128",   INFO(0x1c3018, 0, 64 * 1024,  256, SECT_4K) },
++@@ -2245,6 +2245,8 @@ static const struct flash_info spi_nor_i
++ 	{ "en25qx128a",	INFO(0x1c7118, 0, 64 * 1024,  256, SECT_4K) },
+  	{ "en25q80a",   INFO(0x1c3014, 0, 64 * 1024,   16,
+  			SECT_4K | SPI_NOR_DUAL_READ) },
+ +	{ "en25qh16",   INFO(0x1c7015, 0, 64 * 1024,   32,
+diff -uprN a/target/linux/ipq40xx/patches-5.4/400-mmc-sdhci-sdhci-msm-use-sdhci_set_clock-instead-of-s.patch b/target/linux/ipq40xx/patches-5.4/400-mmc-sdhci-sdhci-msm-use-sdhci_set_clock-instead-of-s.patch
+--- a/target/linux/ipq40xx/patches-5.4/400-mmc-sdhci-sdhci-msm-use-sdhci_set_clock-instead-of-s.patch	2023-12-29 12:26:46.819512358 +0800
++++ b/target/linux/ipq40xx/patches-5.4/400-mmc-sdhci-sdhci-msm-use-sdhci_set_clock-instead-of-s.patch	2023-12-29 12:25:59.553269076 +0800
+@@ -14,7 +14,7 @@ Signed-off-by: Robert Marko <robimarko@g
+ 
+ --- a/drivers/mmc/host/sdhci-msm.c
+ +++ b/drivers/mmc/host/sdhci-msm.c
+-@@ -1763,7 +1763,7 @@ MODULE_DEVICE_TABLE(of, sdhci_msm_dt_mat
++@@ -1764,7 +1764,7 @@ MODULE_DEVICE_TABLE(of, sdhci_msm_dt_mat
+  
+  static const struct sdhci_ops sdhci_msm_ops = {
+  	.reset = sdhci_reset,
+diff -uprN a/target/linux/ipq40xx/patches-5.4/702-dts-ipq4019-add-PHY-switch-nodes.patch b/target/linux/ipq40xx/patches-5.4/702-dts-ipq4019-add-PHY-switch-nodes.patch
+--- a/target/linux/ipq40xx/patches-5.4/702-dts-ipq4019-add-PHY-switch-nodes.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/702-dts-ipq4019-add-PHY-switch-nodes.patch	2023-12-29 12:25:59.557268926 +0800
+@@ -14,7 +14,7 @@ Signed-off-by: Christian Lamparter <chun
+ 
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -616,6 +616,29 @@
++@@ -617,6 +617,29 @@
+  			};
+  		};
+  
+diff -uprN a/target/linux/ipq40xx/patches-5.4/703-net-IPQ4019-needs-rfs-vlan_tag-callbacks-in.patch b/target/linux/ipq40xx/patches-5.4/703-net-IPQ4019-needs-rfs-vlan_tag-callbacks-in.patch
+--- a/target/linux/ipq40xx/patches-5.4/703-net-IPQ4019-needs-rfs-vlan_tag-callbacks-in.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/703-net-IPQ4019-needs-rfs-vlan_tag-callbacks-in.patch	2023-12-29 12:25:59.553269076 +0800
+@@ -24,7 +24,7 @@ Reviewed-by: Grant Grundler <grundler@ch
+ 
+ --- a/include/linux/netdevice.h
+ +++ b/include/linux/netdevice.h
+-@@ -776,6 +776,16 @@ struct xps_map {
++@@ -785,6 +785,16 @@ struct xps_map {
+  #define XPS_MIN_MAP_ALLOC ((L1_CACHE_ALIGN(offsetof(struct xps_map, queues[1])) \
+         - sizeof(struct xps_map)) / sizeof(u16))
+  
+@@ -41,7 +41,7 @@ Reviewed-by: Grant Grundler <grundler@ch
+  /*
+   * This structure holds all XPS maps for device.  Maps are indexed by CPU.
+   */
+-@@ -1379,6 +1389,9 @@ struct net_device_ops {
++@@ -1443,6 +1453,9 @@ struct net_device_ops {
+  						     const struct sk_buff *skb,
+  						     u16 rxq_index,
+  						     u32 flow_id);
+diff -uprN a/target/linux/ipq40xx/patches-5.4/705-net-add-qualcomm-ar40xx-phy.patch b/target/linux/ipq40xx/patches-5.4/705-net-add-qualcomm-ar40xx-phy.patch
+--- a/target/linux/ipq40xx/patches-5.4/705-net-add-qualcomm-ar40xx-phy.patch	2023-12-29 12:26:46.815512508 +0800
++++ b/target/linux/ipq40xx/patches-5.4/705-net-add-qualcomm-ar40xx-phy.patch	2023-12-29 12:25:59.549269225 +0800
+@@ -16,7 +16,7 @@
+  config MICREL_KS8995MA
+ --- a/drivers/net/phy/Makefile
+ +++ b/drivers/net/phy/Makefile
+-@@ -69,6 +69,7 @@ ifdef CONFIG_HWMON
++@@ -71,6 +71,7 @@ ifdef CONFIG_HWMON
+  aquantia-objs			+= aquantia_hwmon.o
+  endif
+  obj-$(CONFIG_AQUANTIA_PHY)	+= aquantia.o
+diff -uprN a/target/linux/ipq40xx/patches-5.4/707-net-phy-Add-Qualcom-QCA807x-driver.patch b/target/linux/ipq40xx/patches-5.4/707-net-phy-Add-Qualcom-QCA807x-driver.patch
+--- a/target/linux/ipq40xx/patches-5.4/707-net-phy-Add-Qualcom-QCA807x-driver.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/707-net-phy-Add-Qualcom-QCA807x-driver.patch	2023-12-29 12:25:59.553269076 +0800
+@@ -40,7 +40,7 @@ Signed-off-by: Robert Marko <robert.mark
+  	---help---
+ --- a/drivers/net/phy/Makefile
+ +++ b/drivers/net/phy/Makefile
+-@@ -103,6 +103,7 @@ obj-$(CONFIG_MICROSEMI_PHY)	+= mscc.o
++@@ -105,6 +105,7 @@ obj-$(CONFIG_MICROSEMI_PHY)	+= mscc.o
+  obj-$(CONFIG_NATIONAL_PHY)	+= national.o
+  obj-$(CONFIG_NXP_TJA11XX_PHY)	+= nxp-tja11xx.o
+  obj-$(CONFIG_QSEMI_PHY)		+= qsemi.o
+diff -uprN a/target/linux/ipq40xx/patches-5.4/708-arm-dts-ipq4019-QCA807x-properties.patch b/target/linux/ipq40xx/patches-5.4/708-arm-dts-ipq4019-QCA807x-properties.patch
+--- a/target/linux/ipq40xx/patches-5.4/708-arm-dts-ipq4019-QCA807x-properties.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/708-arm-dts-ipq4019-QCA807x-properties.patch	2023-12-29 12:25:59.553269076 +0800
+@@ -20,7 +20,7 @@ Signed-off-by: Robert Marko <robert.mark
+  
+  / {
+  	#address-cells = <1>;
+-@@ -597,22 +598,39 @@
++@@ -598,22 +599,39 @@
+  
+  			ethphy0: ethernet-phy@0 {
+  				reg = <0>;
+diff -uprN a/target/linux/ipq40xx/patches-5.4/710-net-add-qualcomm-essedma-ethernet-driver.patch b/target/linux/ipq40xx/patches-5.4/710-net-add-qualcomm-essedma-ethernet-driver.patch
+--- a/target/linux/ipq40xx/patches-5.4/710-net-add-qualcomm-essedma-ethernet-driver.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/710-net-add-qualcomm-essedma-ethernet-driver.patch	2023-12-29 12:25:59.553269076 +0800
+@@ -37,7 +37,7 @@ Signed-off-by: Christian Lamparter <chun
+  obj-$(CONFIG_RMNET) += rmnet/
+ --- a/drivers/net/ethernet/qualcomm/essedma/edma.c
+ +++ b/drivers/net/ethernet/qualcomm/essedma/edma.c
+-@@ -1491,7 +1491,7 @@ int edma_rx_flow_steer(struct net_device
++@@ -1487,7 +1487,7 @@ int edma_rx_flow_steer(struct net_device
+  	int res;
+  
+  	if (skb->protocol == htons(ETH_P_IPV6)) {
+diff -uprN a/target/linux/ipq40xx/patches-5.4/711-dts-ipq4019-add-ethernet-essedma-node.patch b/target/linux/ipq40xx/patches-5.4/711-dts-ipq4019-add-ethernet-essedma-node.patch
+--- a/target/linux/ipq40xx/patches-5.4/711-dts-ipq4019-add-ethernet-essedma-node.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/711-dts-ipq4019-add-ethernet-essedma-node.patch	2023-12-29 12:25:59.557268926 +0800
+@@ -25,7 +25,7 @@ Signed-off-by: Christian Lamparter <chun
+  	};
+  
+  	cpus {
+-@@ -657,6 +659,64 @@
++@@ -658,6 +660,64 @@
+  			status = "disabled";
+  		};
+  
+diff -uprN a/target/linux/ipq40xx/patches-5.4/850-soc-add-qualcomm-syscon.patch b/target/linux/ipq40xx/patches-5.4/850-soc-add-qualcomm-syscon.patch
+--- a/target/linux/ipq40xx/patches-5.4/850-soc-add-qualcomm-syscon.patch	2023-12-29 12:26:46.827512061 +0800
++++ b/target/linux/ipq40xx/patches-5.4/850-soc-add-qualcomm-syscon.patch	2023-12-29 12:25:59.557268926 +0800
+@@ -12,7 +12,7 @@ Subject: SoC: add qualcomm syscon
+  obj-$(CONFIG_QCOM_SDM845_LLCC) += llcc-sdm845.o
+ --- a/drivers/soc/qcom/Kconfig
+ +++ b/drivers/soc/qcom/Kconfig
+-@@ -183,6 +183,13 @@ config QCOM_SOCINFO
++@@ -184,6 +184,13 @@ config QCOM_SOCINFO
+  	 Say yes here to support the Qualcomm socinfo driver, providing
+  	 information about the SoC to user space.
+  
+diff -uprN a/target/linux/ipq40xx/patches-5.4/900-arm-add-cmdline-override.patch b/target/linux/ipq40xx/patches-5.4/900-arm-add-cmdline-override.patch
+--- a/target/linux/ipq40xx/patches-5.4/900-arm-add-cmdline-override.patch	2023-12-29 12:26:46.819512358 +0800
++++ b/target/linux/ipq40xx/patches-5.4/900-arm-add-cmdline-override.patch	2023-12-29 12:25:59.549269225 +0800
+@@ -1,6 +1,6 @@
+ --- a/arch/arm/Kconfig
+ +++ b/arch/arm/Kconfig
+-@@ -1794,6 +1794,14 @@ config ARM_ATAG_DTB_COMPAT_CMDLINE_MANGL
++@@ -1825,6 +1825,14 @@ config ARM_ATAG_DTB_COMPAT_CMDLINE_EXTEN
+  
+  endchoice
+  
+@@ -17,7 +17,7 @@
+  	default ""
+ --- a/drivers/of/fdt.c
+ +++ b/drivers/of/fdt.c
+-@@ -1056,6 +1056,17 @@ int __init early_init_dt_scan_chosen(uns
++@@ -1060,6 +1060,17 @@ int __init early_init_dt_scan_chosen(uns
+  	if (p != NULL && l > 0)
+  		strlcpy(data, p, min(l, COMMAND_LINE_SIZE));
+  
+diff -uprN a/target/linux/ipq40xx/patches-5.4/901-arm-boot-add-dts-files.patch b/target/linux/ipq40xx/patches-5.4/901-arm-boot-add-dts-files.patch
+--- a/target/linux/ipq40xx/patches-5.4/901-arm-boot-add-dts-files.patch	2023-12-29 12:26:46.815512508 +0800
++++ b/target/linux/ipq40xx/patches-5.4/901-arm-boot-add-dts-files.patch	2023-12-29 12:25:59.529269967 +0800
+@@ -10,7 +10,7 @@ Signed-off-by: John Crispin <john@phroze
+ 
+ --- a/arch/arm/boot/dts/Makefile
+ +++ b/arch/arm/boot/dts/Makefile
+-@@ -837,11 +837,59 @@ dtb-$(CONFIG_ARCH_QCOM) += \
++@@ -837,11 +837,60 @@ dtb-$(CONFIG_ARCH_QCOM) += \
+  	qcom-apq8074-dragonboard.dtb \
+  	qcom-apq8084-ifc6540.dtb \
+  	qcom-apq8084-mtp.dtb \
+@@ -39,10 +39,10 @@ Signed-off-by: John Crispin <john@phroze
+  	qcom-ipq4019-ap.dk07.1-c2.dtb \
+ +	qcom-ipq4019-a62.dtb \
+ +	qcom-ipq4019-c526a.dtb \
+++	qcom-ipq4019-ca100.dtb \
+ +	qcom-ipq4019-cm520-79f.dtb \
+ +	qcom-ipq4019-ea8300.dtb \
+ +	qcom-ipq4019-eap2200.dtb \
+-+	qcom-ipq4019-hugo-ac1200.dtb \
+ +	qcom-ipq4019-zte-mf263.dtb \
+ +	qcom-ipq4019-fritzbox-7530.dtb \
+ +	qcom-ipq4019-fritzrepeater-1200.dtb \
+@@ -64,6 +64,7 @@ Signed-off-by: John Crispin <john@phroze
+ +	qcom-ipq4029-ap-303.dtb \
+ +	qcom-ipq4029-ap-303h.dtb \
+ +	qcom-ipq4029-ap-365.dtb \
+++	qcom-ipq4018-gl-a1300.dtb \
+ +	qcom-ipq4029-gl-b1300.dtb \
+ +	qcom-ipq4029-gl-s1300.dtb \
+ +	qcom-ipq4029-mr33.dtb \
+diff -uprN a/target/linux/ipq40xx/patches-5.4/901-essedma-disable-default-vlan-tagging.patch b/target/linux/ipq40xx/patches-5.4/901-essedma-disable-default-vlan-tagging.patch
+--- a/target/linux/ipq40xx/patches-5.4/901-essedma-disable-default-vlan-tagging.patch	2023-12-29 12:26:46.819512358 +0800
++++ b/target/linux/ipq40xx/patches-5.4/901-essedma-disable-default-vlan-tagging.patch	2023-12-29 12:25:59.549269225 +0800
+@@ -24,7 +24,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gma
+ 
+ --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+ +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+-@@ -665,8 +665,7 @@
++@@ -666,8 +666,7 @@
+  			qcom,page-mode = <0>;
+  			qcom,rx_head_buf_size = <1540>;
+  			qcom,mdio_supported;
+@@ -34,7 +34,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gma
+  			interrupts = <0  65 IRQ_TYPE_EDGE_RISING
+  				      0  66 IRQ_TYPE_EDGE_RISING
+  				      0  67 IRQ_TYPE_EDGE_RISING
+-@@ -704,7 +703,7 @@
++@@ -705,7 +704,7 @@
+  
+  			gmac0: gmac0 {
+  				local-mac-address = [00 00 00 00 00 00];
+diff -uprN a/target/linux/ipq40xx/patches-5.4/995-add-qca-rfs-support.patch b/target/linux/ipq40xx/patches-5.4/995-add-qca-rfs-support.patch
+--- a/target/linux/ipq40xx/patches-5.4/995-add-qca-rfs-support.patch	2023-12-29 12:26:46.819512358 +0800
++++ b/target/linux/ipq40xx/patches-5.4/995-add-qca-rfs-support.patch	2023-12-29 12:25:59.549269225 +0800
+@@ -40,7 +40,7 @@
+  #endif
+ --- a/include/linux/netdevice.h
+ +++ b/include/linux/netdevice.h
+-@@ -2595,6 +2595,8 @@ enum netdev_cmd {
++@@ -2662,6 +2662,8 @@ enum netdev_cmd {
+  	NETDEV_CVLAN_FILTER_DROP_INFO,
+  	NETDEV_SVLAN_FILTER_PUSH_INFO,
+  	NETDEV_SVLAN_FILTER_DROP_INFO,
+@@ -125,7 +125,7 @@
+  #endif
+ --- a/drivers/net/phy/phy.c
+ +++ b/drivers/net/phy/phy.c
+-@@ -703,6 +703,7 @@ void phy_stop_machine(struct phy_device *phydev)
++@@ -728,6 +728,7 @@ void phy_stop_machine(struct phy_device
+  		phydev->state = PHY_UP;
+  	mutex_unlock(&phydev->lock);
+  }
+@@ -135,7 +135,7 @@
+   * phy_error - enter HALTED state for this PHY device
+ --- a/drivers/net/ppp/ppp_generic.c
+ +++ b/drivers/net/ppp/ppp_generic.c
+-@@ -3341,6 +3341,318 @@ static void *unit_find(struct idr *p, int n)
++@@ -3359,6 +3359,318 @@ static void *unit_find(struct idr *p, in
+  	return idr_find(p, n);
+  }
+  
+@@ -467,7 +467,7 @@
+  /*
+   * Determine initial path cost based on speed.
+   * using recommendations from 802.1d standard
+-@@ -681,6 +685,8 @@ int br_add_if(struct net_bridge *br, struct net_device *dev,
++@@ -695,6 +699,8 @@ int br_add_if(struct net_bridge *br, str
+  
+  	kobject_uevent(&p->kobj, KOBJ_ADD);
+  
+@@ -476,7 +476,7 @@
+  	return 0;
+  
+  err7:
+-@@ -714,6 +720,8 @@ int br_del_if(struct net_bridge *br, struct net_device *dev)
++@@ -731,6 +737,8 @@ int br_del_if(struct net_bridge *br, str
+  	if (!p || p->br != br)
+  		return -EINVAL;
+  
+@@ -485,7 +485,7 @@
+  	/* Since more than one interface can be attached to a bridge,
+  	 * there still maybe an alternate path for netconsole to use;
+  	 * therefore there is no reason for a NETDEV_RELEASE event.
+-@@ -768,6 +776,65 @@ void br_dev_update_stats(struct net_device *dev,
++@@ -785,6 +793,65 @@ void br_dev_update_stats(struct net_devi
+  }
+  EXPORT_SYMBOL_GPL(br_dev_update_stats);
+  
+@@ -553,7 +553,7 @@
+  	struct net_bridge_port *p;
+ --- a/net/bridge/br_fdb.c
+ +++ b/net/bridge/br_fdb.c
+-@@ -37,6 +37,33 @@ static int fdb_insert(struct net_bridge *br, struct net_bridge_port *source,
++@@ -37,6 +37,33 @@ static int fdb_insert(struct net_bridge
+  static void fdb_notify(struct net_bridge *br,
+  		       const struct net_bridge_fdb_entry *, int, bool);
+  
+@@ -587,7 +587,7 @@
+  int __init br_fdb_init(void)
+  {
+  	br_fdb_cache = kmem_cache_create("bridge_fdb_cache",
+-@@ -337,6 +364,7 @@ void br_fdb_cleanup(struct work_struct *work)
++@@ -337,6 +364,7 @@ void br_fdb_cleanup(struct work_struct *
+  	unsigned long delay = hold_time(br);
+  	unsigned long work_delay = delay;
+  	unsigned long now = jiffies;
+@@ -595,7 +595,7 @@
+  
+  	/* this part is tricky, in order to avoid blocking learning and
+  	 * consequently forwarding, we rely on rcu to delete objects with
+-@@ -353,8 +381,11 @@ void br_fdb_cleanup(struct work_struct *work)
++@@ -353,8 +381,11 @@ void br_fdb_cleanup(struct work_struct *
+  			work_delay = min(work_delay, this_timer - now);
+  		} else {
+  			spin_lock_bh(&br->hash_lock);
+@@ -608,7 +608,7 @@
+  			spin_unlock_bh(&br->hash_lock);
+  		}
+  	}
+-@@ -587,6 +618,8 @@ void br_fdb_update(struct net_bridge *br, struct net_bridge_port *source,
++@@ -587,6 +618,8 @@ void br_fdb_update(struct net_bridge *br
+  				/* Take over HW learned entry */
+  				if (unlikely(fdb->added_by_external_learn))
+  					fdb->added_by_external_learn = 0;
+@@ -617,7 +617,7 @@
+  			}
+  			if (now != fdb->updated)
+  				fdb->updated = now;
+-@@ -696,6 +729,23 @@ static void fdb_notify(struct net_bridge *br,
++@@ -696,6 +729,23 @@ static void fdb_notify(struct net_bridge
+  	struct sk_buff *skb;
+  	int err = -ENOBUFS;
+  
+@@ -641,7 +641,7 @@
+  	if (swdev_notify)
+  		br_switchdev_fdb_notify(br, fdb, type);
+  
+-@@ -1212,3 +1262,41 @@ void br_fdb_clear_offload(const struct net_device *dev, u16 vid)
++@@ -1212,3 +1262,41 @@ void br_fdb_clear_offload(const struct n
+  	spin_unlock_bh(&p->br->hash_lock);
+  }
+  EXPORT_SYMBOL_GPL(br_fdb_clear_offload);
+diff -uprN a/target/linux/ipq40xx/patches-5.4/997-device_tree_cmdline.patch b/target/linux/ipq40xx/patches-5.4/997-device_tree_cmdline.patch
+--- a/target/linux/ipq40xx/patches-5.4/997-device_tree_cmdline.patch	2023-12-29 12:26:46.823512210 +0800
++++ b/target/linux/ipq40xx/patches-5.4/997-device_tree_cmdline.patch	2023-12-29 12:25:59.553269076 +0800
+@@ -8,5 +8,5 @@
+ +	if (p != NULL && l > 0)
+ +		strlcat(data, p, min_t(int, strlen(data) + (int)l, COMMAND_LINE_SIZE));
+  
+- 	/*
+- 	 * CONFIG_CMDLINE is meant to be a default in case nothing else
++     /* CONFIG_CMDLINE_OVERRIDE is used to fallback to a different
++      * device tree option of chosen/bootargs-override. This is

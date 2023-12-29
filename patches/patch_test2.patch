@@ -1024,3 +1024,154 @@ diff -uprN a/package/firmware/linux-firmware/realtek.mk b/package/firmware/linux
 +	$(INSTALL_DATA) $(PKG_BUILD_DIR)/rtw89/rtw8852c_fw.bin $(1)/lib/firmware/rtw89
 +endef
 +$(eval $(call BuildPackage,rtl8852ce-firmware))
+diff -uprN a/package/network/utils/iptables/Makefile b/package/network/utils/iptables/Makefile
+--- a/package/network/utils/iptables/Makefile	2023-12-29 11:12:37.833054288 +0800
++++ b/package/network/utils/iptables/Makefile	2023-12-29 11:13:11.843751554 +0800
+@@ -10,7 +10,7 @@ include $(INCLUDE_DIR)/kernel.mk
+ 
+ PKG_NAME:=iptables
+ PKG_VERSION:=1.8.7
+-PKG_RELEASE:=1
++PKG_RELEASE:=2
+ 
+ PKG_SOURCE_URL:=https://netfilter.org/projects/iptables/files
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
+@@ -222,19 +222,6 @@ iptables extensions for extra NAT target
+   - NETMAP
+ endef
+ 
+-define Package/iptables-mod-ulog
+-$(call Package/iptables/Module, +kmod-ipt-ulog)
+-  TITLE:=user-space packet logging
+-endef
+-
+-define Package/iptables-mod-ulog/description
+-iptables extensions for user-space packet logging.
+-
+- Targets:
+-  - ULOG
+-
+-endef
+-
+ define Package/iptables-mod-nflog
+ $(call Package/iptables/Module, +kmod-nfnetlink-log +kmod-ipt-nflog)
+   TITLE:=Netfilter NFLOG target
+@@ -393,6 +380,19 @@ iptables extension for triggering a LED.
+ 
+ endef
+ 
++define Package/iptables-mod-socket
++$(call Package/iptables/Module, +kmod-ipt-socket)
++  TITLE:=Socket match iptables extensions
++endef
++
++define Package/iptables-mod-socket/description
++Socket match iptables extensions.
++
++ Matches:
++  - socket
++
++endef
++
+ define Package/iptables-mod-tproxy
+ $(call Package/iptables/Module, +kmod-ipt-tproxy)
+   TITLE:=Transparent proxy iptables extensions
+@@ -401,9 +401,6 @@ endef
+ define Package/iptables-mod-tproxy/description
+ Transparent proxy iptables extensions.
+ 
+- Matches:
+-  - socket
+-
+  Targets:
+   - TPROXY
+ 
+@@ -674,10 +671,10 @@ $(eval $(call BuildPlugin,iptables-mod-n
+ $(eval $(call BuildPlugin,iptables-mod-iprange,$(IPT_IPRANGE-m)))
+ $(eval $(call BuildPlugin,iptables-mod-cluster,$(IPT_CLUSTER-m)))
+ $(eval $(call BuildPlugin,iptables-mod-clusterip,$(IPT_CLUSTERIP-m)))
+-$(eval $(call BuildPlugin,iptables-mod-ulog,$(IPT_ULOG-m)))
+ $(eval $(call BuildPlugin,iptables-mod-hashlimit,$(IPT_HASHLIMIT-m)))
+ $(eval $(call BuildPlugin,iptables-mod-rpfilter,$(IPT_RPFILTER-m)))
+ $(eval $(call BuildPlugin,iptables-mod-led,$(IPT_LED-m)))
++$(eval $(call BuildPlugin,iptables-mod-socket,$(IPT_SOCKET-m)))
+ $(eval $(call BuildPlugin,iptables-mod-tproxy,$(IPT_TPROXY-m)))
+ $(eval $(call BuildPlugin,iptables-mod-tee,$(IPT_TEE-m)))
+ $(eval $(call BuildPlugin,iptables-mod-u32,$(IPT_U32-m)))
+diff -uprN a/package/network/utils/iptables/patches/900-bcm-fullconenat.patch b/package/network/utils/iptables/patches/900-bcm-fullconenat.patch
+--- a/package/network/utils/iptables/patches/900-bcm-fullconenat.patch	1970-01-01 08:00:00.000000000 +0800
++++ b/package/network/utils/iptables/patches/900-bcm-fullconenat.patch	2023-12-29 11:13:11.843751554 +0800
+@@ -0,0 +1,73 @@
++--- a/extensions/libipt_MASQUERADE.c
+++++ b/extensions/libipt_MASQUERADE.c
++@@ -11,6 +11,7 @@
++ enum {
++ 	O_TO_PORTS = 0,
++ 	O_RANDOM,
+++	O_MODE,
++ 	O_RANDOM_FULLY,
++ };
++ 
++@@ -23,13 +24,16 @@ static void MASQUERADE_help(void)
++ " --random\n"
++ "				Randomize source port.\n"
++ " --random-fully\n"
++-"				Fully randomize source port.\n");
+++"				Fully randomize source port.\n"
+++" --mode <fullcone|symmetric>\n"
+++"				NAT mode.\n");
++ }
++ 
++ static const struct xt_option_entry MASQUERADE_opts[] = {
++ 	{.name = "to-ports", .id = O_TO_PORTS, .type = XTTYPE_STRING},
++ 	{.name = "random", .id = O_RANDOM, .type = XTTYPE_NONE},
++ 	{.name = "random-fully", .id = O_RANDOM_FULLY, .type = XTTYPE_NONE},
+++	{.name = "mode", .id = O_MODE, .type = XTTYPE_STRING},
++ 	XTOPT_TABLEEND,
++ };
++ 
++@@ -90,6 +94,8 @@ static void MASQUERADE_parse(struct xt_o
++ 	else
++ 		portok = 0;
++ 
+++	mr->range[0].min_ip = 0;
+++
++ 	xtables_option_parse(cb);
++ 	switch (cb->entry->id) {
++ 	case O_TO_PORTS:
++@@ -104,6 +110,15 @@ static void MASQUERADE_parse(struct xt_o
++ 	case O_RANDOM_FULLY:
++ 		mr->range[0].flags |=  NF_NAT_RANGE_PROTO_RANDOM_FULLY;
++ 		break;
+++	case O_MODE:
+++		if (strcasecmp(cb->arg, "fullcone") == 0)
+++			mr->range[0].min_ip = 1;
+++		else if (strcasecmp(cb->arg, "symmetric") == 0)
+++			mr->range[0].min_ip = 0;
+++		else
+++			xtables_error(PARAMETER_PROBLEM,
+++				   "Unknown mode %s", cb->arg);
+++		break;
++ 	}
++ }
++ 
++@@ -126,6 +141,9 @@ MASQUERADE_print(const void *ip, const s
++ 
++ 	if (r->flags & NF_NAT_RANGE_PROTO_RANDOM_FULLY)
++ 		printf(" random-fully");
+++
+++	if (r->min_ip == 1)
+++		printf(" mode: fullcone");
++ }
++ 
++ static void
++@@ -145,6 +163,9 @@ MASQUERADE_save(const void *ip, const st
++ 
++ 	if (r->flags & NF_NAT_RANGE_PROTO_RANDOM_FULLY)
++ 		printf(" --random-fully");
+++
+++	if (r->min_ip == 1)
+++		printf(" --mode fullcone");
++ }
++ 
++ static int MASQUERADE_xlate(struct xt_xlate *xl,

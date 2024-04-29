@@ -7,7 +7,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=filebrowser
-#PKG_VERSION:=2.28.0
+#PKG_VERSION:=2.12.1
 PKG_VERSION:=2.28.0
 PKG_RELEASE:=1
 

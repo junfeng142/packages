@@ -70,9 +70,9 @@ endif
 
 define Build/Compile
 ( \
-#  cd $(PKG_BUILD_DIR) ; \
-#  rm -rf frontend/dist ; \
-#  rm -f http/rice-box.go ; \
+  cd $(PKG_BUILD_DIR) ; \
+  rm -rf frontend/dist ; \
+  rm -f http/rice-box.go ; \
   cd $(PKG_BUILD_DIR)/frontend ; \
   npm ci; \
   npm run lint ; \

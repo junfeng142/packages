@@ -44,7 +44,7 @@ start() {
 {
   "force": false,
   "site_url": "",
-  "jwt_secret": "admin123",
+  "jwt_secret": "",
   "token_expires_in": 48,
   "cdn": "",
   "database": {
